@@ -1,0 +1,168 @@
+---
+title: "Untitled"
+author: "a"
+date: "2023-02-28"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+Let us start by loading the required packages for the project and
+fixing the seed.
+
+```{r, message = FALSE, results = FALSE}
+require("tidyverse")    || !is.null(install.packages("tidyverse"))    || require("tidyverse")
+require("glmnet")       || !is.null(install.packages("glmnet"))       || require("glmnet")
+require("MASS")         || !is.null(install.packages("MASS"))         || require("MASS")
+require("scales")       || !is.null(install.packages("scales"))       || require("scales")
+require("testit")       || !is.null(install.packages("testit"))       || require("testit")
+require("fitdistrplus") || !is.null(install.packages("fitdistrplus")) || require("fitdistrplus")
+set.seed(100)
+```
+
+We will also require a root mean square error function
+to be used later when testing the different fits.
+
+```{r}
+rmse <- function(y_pred, y){ #not designed for readability
+  assert("Different lengths for inputs!",
+         length(y_pred) == length(y))
+  (y_pred - y)             %>%
+    (\(x) x / length(x))() |> 
+    #· We are testing the limits of R ·#
+    (\(x) x * x)()         |>
+    sum()                  %>%  
+    sqrt()                 
+}
+```
+
+# Introduction
+
+We have chosen a dataset which includes the housing prices for
+a region, along with different factors.
+The idea is to try and see whether we may predict the price based
+on the rest of predictors.
+Let us peek into the data:
+
+```{r}
+data <- read.csv("bayesian_regression_data.csv", sep = ";")
+head(data, 5)
+```
+
+We will split our data into a train and test partition to compare
+the different fits.
+
+```{r}
+p <- 0.8
+n <- nrow(data)
+train_idx <- sample(1:n, round(n*p), replace = F)
+
+train   <- data[ train_idx, ]
+test    <- data[-train_idx, ]
+x_train <- data[ train_idx, -16]
+x_test  <- data[-train_idx, -16]
+y_train <- data[ train_idx,  16]
+y_test  <- data[-train_idx,  16] 
+```
+
+Lastly, because we will later use methods like Lasso, we already
+prepare a scaled train data set for later.
+
+```{r}
+sc   <- scale(train)
+x_sc <- sc[, -16]
+y_sc <- sc[,  16]
+```
+
+# Frequentist approach
+
+We start with the frequentist approach.
+First, we fit a model in which we use all of the variables as
+predictors
+
+```{r}
+fit_full_frequentist  <- lm(SalePrice ~ ., data = train)
+pred_full_frequentist <- predict(fit_full_frequentist, x_test)
+summary(fit_full_frequentist)
+```
+
+We observe that there are several non-important variables.
+Out target is to get rid of them and use a smaller selection
+of predictors using Lasso to find parameter.
+
+```{r}
+optimal_lambda <- 0.0
+
+for (i in 1:10) {
+    cv_lasso       <- cv.glmnet(x_sc, y_sc, alpha = 1, nfolds = 10)
+    optimal_lambda <- optimal_lambda + cv_lasso$lambda.1se
+}
+
+optimal_lambda   <- optimal_lambda / 10
+mod_lasso        <- glmnet(x_sc, y_sc, alpha = 1, lambda = optimal_lambda)
+selected_idx     <- which(mod_lasso$beta != 0)
+selected_vars    <- rownames(mod_lasso$beta)[selected_idx]
+
+lhs_formula_fit  <- "SalePrice ~ "
+rhs_formula_fit  <- paste(selected_vars, collapse = " + ")
+formula_fit      <- as.formula(paste(lhs_formula_fit, rhs_formula_fit))
+```
+
+Now we can repeat the fit but only using the predictors
+considered by Lasso.
+
+```{r}
+fit_lasso_frequentist  <- lm(formula_fit, data = train)
+pred_lasso_frequentist <- predict(fit_lasso_frequentist, x_test)
+summary(fit_lasso_frequentist)
+```
+
+Another approach is to include and exclude variables sequentially
+and, using the Bayesian Information Criteria (BIC) select the best
+model, as the one that minimizes the BIC.
+Once again we start with all variables as predictors.
+
+```{r}
+fit_step_frequentist  <- stepAIC(fit_full_frequentist,
+                                 k = log(n), trace = FALSE)
+pred_step_frequentist <- predict(fit_step_frequentist, x_test)
+summary(fit_step_frequentist)
+```
+
+Now is time to compare the three models.
+We will take the best as the "control" for the latter comparison
+with Bayesian methods.
+
+```{r}
+rmse_frequentist <- data.frame(
+    full = rmse(pred_full_frequentist,  y_test),
+    laso = rmse(pred_lasso_frequentist, y_test),
+    step = rmse(pred_step_frequentist,  y_test)
+)
+rmse_frequentist
+```
+
+Now, how could we do better?
+If we look at the distribution of the target variable
+we realize that it does not follow a normal distribution.
+This information is important, as one of the basic assumptions
+of the frequentist models is the normality, which allows for
+inference on the parameters.
+Moreover, the distribution looks like a gamma distribution,
+which could allow us to more successfully apply Bayesian
+regression methods.
+
+```{r, warning = FALSE}
+gammadist <- fitdist(y_train, "gamma", method = "mme")
+ggplot(aes(x = SalePrice), data = train) + 
+  geom_histogram(aes(y = ..density..),
+                 col = "white", fill = "deeppink2", bins = 30) +
+  xlab("Density") + ylab("Sale Price") + 
+  ggtitle("Histogram of sale price") + 
+  scale_x_continuous(labels = function(x) 
+    format(x, scientific = F)) +
+  stat_function(fun = dgamma, args = as.list(gammadist$estimate)) +
+  theme_classic()
+```
