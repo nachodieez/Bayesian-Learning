@@ -1,8 +1,12 @@
 ---
 title: "Untitled"
 author: "a"
-date: "2023-02-28"
-output: pdf_document
+date: `r format(Sys.Date(), "%d/%m/%Y")`
+output:
+  html_document:
+    toc: True
+    toc_float: True
+    theme: cosmo
 ---
 
 ```{r setup, include=FALSE}
