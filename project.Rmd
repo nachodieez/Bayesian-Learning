@@ -169,13 +169,27 @@ traces    <- as.data.frame(base_bayes_model$Sol)
 var_names <- c("(Intercept)", names(x_train))
 for (v in var_names) {
     p1 <- traces[v] %>%
-        ggplot(aes(x = as.numeric(row.names(traces)), y=.data[[v]])) +
-            geom_line(col="deeppink4") + xlab("MC iteration") + theme_bw()
+        ggplot(aes(x = as.numeric(row.names(traces)), y = .data[[v]])) +
+            geom_line(col = "deeppink4") + xlab("MC iteration") + theme_bw()
     p2 <- traces[v] %>%
-        ggplot(aes(x=.data[[v]])) + 
-        geom_histogram(col="white", fill="dodgerblue3", bins = 30) + theme_bw()
+        ggplot(aes(x = .data[[v]])) + 
+        geom_histogram(col = "white", fill = "dodgerblue3", bins = 30) + theme_bw()
     
-    print(p1 | p2)
+    temp <- as.data.frame(acf(traces[v], plot = FALSE)$acf[-1, , 1 ])
+    temp <- cbind(temp, as.numeric(rownames(temp)))
+    colnames(temp) <- c("acf", "lag")
+    
+    p3 <- temp %>%
+        ggplot(aes(x = lag, y = acf)) +
+            geom_hline(aes(yintercept = 0)) +
+            geom_segment(mapping = aes(xend = lag, yend = 0)) +
+            geom_hline(aes(yintercept = 1.959964/sqrt(nrow(temp))),
+                       linetype = 2, col = "deeppink4") +
+            geom_hline(aes(yintercept = -1.959964/sqrt(nrow(temp))),
+                       linetype = 2, col = "deeppink4") +
+            xlab("Lag") + ylab("ACF") + theme_bw()
+    
+    print(p1 | p2 | p3)
 }
 ```
 
