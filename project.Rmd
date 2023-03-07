@@ -13,12 +13,12 @@ Let us start by loading the required packages for the project and
 fixing the seed.
 
 ```{r, message = FALSE, results = FALSE}
-require("tidyverse")    || !is.null(install.packages("tidyverse"))    || require("tidyverse")
-require("glmnet")       || !is.null(install.packages("glmnet"))       || require("glmnet")
-require("MASS")         || !is.null(install.packages("MASS"))         || require("MASS")
-require("scales")       || !is.null(install.packages("scales"))       || require("scales")
-require("testit")       || !is.null(install.packages("testit"))       || require("testit")
-require("fitdistrplus") || !is.null(install.packages("fitdistrplus")) || require("fitdistrplus")
+require("tidyverse")    || is.null(install.packages("tidyverse"))    && require("tidyverse")
+require("glmnet")       || is.null(install.packages("glmnet"))       && require("glmnet")
+require("MASS")         || is.null(install.packages("MASS"))         && require("MASS")
+require("scales")       || is.null(install.packages("scales"))       && require("scales")
+require("testit")       || is.null(install.packages("testit"))       && require("testit")
+require("fitdistrplus") || is.null(install.packages("fitdistrplus")) && require("fitdistrplus")
 set.seed(100)
 ```
 
