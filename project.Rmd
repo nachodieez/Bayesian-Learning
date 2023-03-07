@@ -166,41 +166,18 @@ Lets plot the distribution of the parameters
 
 ```{r}
 traces    <- as.data.frame(base_bayes_model$Sol)
-var_names <- matrix(c("(Intercept)", names(x_train)), ncol = 4)
-for (i in 1:4) {
-    p11 <- traces[var_names[i, 1]] %>%
-        ggplot(aes(x = as.numeric(row.names(traces)), y=.data[[var_names[i, 1]]])) +
+var_names <- c("(Intercept)", names(x_train))
+for (v in var_names) {
+    p1 <- traces[v] %>%
+        ggplot(aes(x = as.numeric(row.names(traces)), y=.data[[v]])) +
             geom_line(col="deeppink4") + xlab("MC iteration") + theme_bw()
-    p12 <- traces[var_names[i, 1]] %>%
-        ggplot(aes(x=.data[[var_names[i, 1]]])) + 
+    p2 <- traces[v] %>%
+        ggplot(aes(x=.data[[v]])) + 
         geom_histogram(col="white", fill="dodgerblue3", bins = 30) + theme_bw()
     
-    p21 <- traces[var_names[i, 2]] %>%
-        ggplot(aes(x = as.numeric(row.names(traces)), y=.data[[var_names[i, 2]]])) +
-            geom_line(col="deeppink4") + xlab("MC iteration") + theme_bw()
-    p22 <- traces[var_names[i, 2]] %>%
-        ggplot(aes(x=.data[[var_names[i, 2]]])) + 
-        geom_histogram(col="white", fill="dodgerblue3", bins = 30) + theme_bw()
-    
-    p31 <- traces[var_names[i, 3]] %>%
-        ggplot(aes(x = as.numeric(row.names(traces)), y=.data[[var_names[i, 3]]])) +
-            geom_line(col="deeppink4") + xlab("MC iteration") + theme_bw()
-    p32 <- traces[var_names[i, 3]] %>%
-        ggplot(aes(x=.data[[var_names[i, 3]]])) + 
-        geom_histogram(col="white", fill="dodgerblue3", bins = 30) + theme_bw()
-    
-    p41 <- traces[var_names[i, 4]] %>%
-        ggplot(aes(x = as.numeric(row.names(traces)), y=.data[[var_names[i, 4]]])) +
-            geom_line(col="deeppink4") + xlab("MC iteration") + theme_bw()
-    p42 <- traces[var_names[i, 4]] %>%
-        ggplot(aes(x=.data[[var_names[i, 4]]])) + 
-        geom_histogram(col="white", fill="dodgerblue3", bins = 30) + theme_bw()
-    
-    print((p11 | p12) / (p21 | p22) / (p31 | p32) / (p41 | p42))
+    print(p1 | p2)
 }
 ```
-
-
 
 ```{r}
 f_vs_b <- cbind(fit_full_frequentist$coefficients, colMeans(base_bayes_model$Sol))
