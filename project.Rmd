@@ -1,7 +1,7 @@
 ---
 title: "Untitled"
 author: "a"
-date: `r format(Sys.Date(), "%d/%m/%Y")`
+date: "March 2023"
 output:
   html_document:
     toc: True
@@ -23,6 +23,9 @@ require("MASS")         || is.null(install.packages("MASS"))         && require(
 require("scales")       || is.null(install.packages("scales"))       && require("scales")
 require("testit")       || is.null(install.packages("testit"))       && require("testit")
 require("fitdistrplus") || is.null(install.packages("fitdistrplus")) && require("fitdistrplus")
+require("MCMCglmm")     || is.null(install.packages("MCMCglmm"))     && require("MCMCglmm")
+require("monomvn")      || is.null(install.packages("monomvn"))      && require("monomvn")
+require("patchwork")    || is.null(install.packages("patchwork"))    && require("patchwork")
 set.seed(100)
 ```
 
@@ -148,25 +151,130 @@ rmse_frequentist <- data.frame(
 rmse_frequentist
 ```
 
-Now, how could we do better?
-If we look at the distribution of the target variable
-we realize that it does not follow a normal distribution.
-This information is important, as one of the basic assumptions
-of the frequentist models is the normality, which allows for
-inference on the parameters.
-Moreover, the distribution looks like a gamma distribution,
-which could allow us to more successfully apply Bayesian
-regression methods.
+## Bayesian Approach
 
-```{r, warning = FALSE}
-gammadist <- fitdist(y_train, "gamma", method = "mme")
-ggplot(aes(x = SalePrice), data = train) + 
-  geom_histogram(aes(y = ..density..),
-                 col = "white", fill = "deeppink2", bins = 30) +
-  xlab("Density") + ylab("Sale Price") + 
-  ggtitle("Histogram of sale price") + 
-  scale_x_continuous(labels = function(x) 
-    format(x, scientific = F)) +
-  stat_function(fun = dgamma, args = as.list(gammadist$estimate)) +
-  theme_classic()
+
+```{r}
+f <- formula(paste("SalePrice ~", paste(names(x_train), collapse = " + ")))
+base_bayes_model <- MCMCglmm(f, data = train, verbose = FALSE)
+bayesian_preds   <- predict(base_bayes_model, test)
+summary(base_bayes_model)
+```
+
+
+Lets plot the distribution of the parameters
+
+```{r}
+traces    <- as.data.frame(base_bayes_model$Sol)
+var_names <- matrix(c("(Intercept)", names(x_train)), ncol = 4)
+for (i in 1:4) {
+    p11 <- traces[var_names[i, 1]] %>%
+        ggplot(aes(x = as.numeric(row.names(traces)), y=.data[[var_names[i, 1]]])) +
+            geom_line(col="deeppink4") + xlab("MC iteration") + theme_bw()
+    p12 <- traces[var_names[i, 1]] %>%
+        ggplot(aes(x=.data[[var_names[i, 1]]])) + 
+        geom_histogram(col="white", fill="dodgerblue3", bins = 30) + theme_bw()
+    
+    p21 <- traces[var_names[i, 2]] %>%
+        ggplot(aes(x = as.numeric(row.names(traces)), y=.data[[var_names[i, 2]]])) +
+            geom_line(col="deeppink4") + xlab("MC iteration") + theme_bw()
+    p22 <- traces[var_names[i, 2]] %>%
+        ggplot(aes(x=.data[[var_names[i, 2]]])) + 
+        geom_histogram(col="white", fill="dodgerblue3", bins = 30) + theme_bw()
+    
+    p31 <- traces[var_names[i, 3]] %>%
+        ggplot(aes(x = as.numeric(row.names(traces)), y=.data[[var_names[i, 3]]])) +
+            geom_line(col="deeppink4") + xlab("MC iteration") + theme_bw()
+    p32 <- traces[var_names[i, 3]] %>%
+        ggplot(aes(x=.data[[var_names[i, 3]]])) + 
+        geom_histogram(col="white", fill="dodgerblue3", bins = 30) + theme_bw()
+    
+    p41 <- traces[var_names[i, 4]] %>%
+        ggplot(aes(x = as.numeric(row.names(traces)), y=.data[[var_names[i, 4]]])) +
+            geom_line(col="deeppink4") + xlab("MC iteration") + theme_bw()
+    p42 <- traces[var_names[i, 4]] %>%
+        ggplot(aes(x=.data[[var_names[i, 4]]])) + 
+        geom_histogram(col="white", fill="dodgerblue3", bins = 30) + theme_bw()
+    
+    print((p11 | p12) / (p21 | p22) / (p31 | p32) / (p41 | p42))
+}
+```
+
+
+
+```{r}
+f_vs_b <- cbind(fit_full_frequentist$coefficients, colMeans(base_bayes_model$Sol))
+colnames(f_vs_b) <- c("Frequentist","Bayesian")
+format(f_vs_b, scientific = 999)
+```
+
+## Using a manual prior distibution
+
+Using an uninformative prior distribution
+
+```{r}
+lambda    <- 1e-5
+reg.prior <- list(
+    B = list(mu = rep(0, length(x_train) + 1),
+    V = diag(1 / lambda, length(x_train) + 1)))
+
+base_bayes_model_uninformative <- MCMCglmm(f, prior = reg.prior,
+                                           data = train, verbose = FALSE)
+bayesian_uninformative_preds   <- predict(base_bayes_model_uninformative, test)
+summary(base_bayes_model_uninformative)
+```
+
+### Blasso
+
+
+```{r}
+blasso_model <- blasso(x_train, y_train, verb=0)
+selected     <- names(x_train)[summary(blasso_model)$bn0 > 0.95]
+lhs_formula  <- "SalePrice ~ "
+rhs_formula  <- paste(selected, collapse = " + ")
+full_formula <- as.formula(paste(lhs_formula, rhs_formula))
+blasso_bayes_model <- MCMCglmm(full_formula, data = train, verbose = FALSE)
+basso_preds        <- predict(blasso_bayes_model, test)
+summary(blasso_bayes_model)
+```
+
+
+```{r}
+pb <- as.data.frame(blasso_model$m)
+
+pl <- pb %>%
+        ggplot(aes(x = as.numeric(rownames(pb)), y = blasso_model$m)) +
+            geom_line(col="deeppink4") +
+            xlab("MC iteration") + ylab("m") + theme_bw()
+
+ph <- pb %>% 
+    ggplot(aes(x = blasso_model$m)) + theme_bw() + xlab("m") +
+    geom_histogram(col="white", fill="dodgerblue3", bins = 15)
+
+pl | ph
+```
+
+
+```{r}
+bd <- as.data.frame(blasso_model$beta)
+colnames(bd) <- names(x_train)
+bd <- bd %>%
+        pivot_longer(cols = names(bd), names_to = "Coefficient", values_to = "Values")
+
+bd %>%
+    ggplot(aes(x = Coefficient, y = Values)) +
+    geom_boxplot() + theme_bw() +
+    theme(axis.text.x = element_text(angle = 90))
+```
+
+
+### RMSE  
+
+```{r}
+rmse_bayesian <- data.frame(
+    base          = rmse(bayesian_preds,  y_test),
+    uninformative = rmse(bayesian_uninformative_preds, y_test),
+    blasso        = rmse(basso_preds, y_test)
+)
+rmse_bayesian
 ```
