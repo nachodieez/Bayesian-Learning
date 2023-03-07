@@ -1,0 +1,49 @@
+---
+title: "OpenProject"
+author: "yo no"
+date: "`r Sys.Date()`"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+```{r}
+library(tidyverse)
+library(lubridate)
+library(fpp3)
+```
+
+
+```{r}
+co2 <-  read.table("https://www.esrl.noaa.gov/gmd/webdata/ccgg/trends/co2/co2_mm_mlo.txt")
+temp <- read.csv("https://data.giss.nasa.gov/gistemp/tabledata_v4/GLB.Ts+dSST.csv", header=T, skip=1, sep=",", na.strings="***")
+```
+
+
+```{r}
+co2 %>% head()
+```
+
+Wild -99.99
+
+
+```{r}
+co2_ts <- ts(co2_data[,5], start=c(1958,3), frequency=12) %>% 
+  as_tsibble()
+```
+
+```{r}
+temp_data <- temp_data[,c(1:13)]  
+```
+
+```{r}
+temp_ts <- ts(as.vector(t(temp_data[,2:13])),
+              frequency=12) %>% 
+  as_tsibble() %>%
+  drop_na()
+```
+
+

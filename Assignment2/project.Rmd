@@ -26,7 +26,7 @@ require("fitdistrplus") || is.null(install.packages("fitdistrplus")) && require(
 require("MCMCglmm")     || is.null(install.packages("MCMCglmm"))     && require("MCMCglmm")
 require("monomvn")      || is.null(install.packages("monomvn"))      && require("monomvn")
 require("patchwork")    || is.null(install.packages("patchwork"))    && require("patchwork")
-set.seed(100)
+set.seed(42)
 ```
 
 We will also require a root mean square error function
@@ -62,16 +62,16 @@ We will split our data into a train and test partition to compare
 the different fits.
 
 ```{r}
-p <- 0.8
-n <- nrow(data)
+p         <- 0.8
+n         <- nrow(data)
 train_idx <- sample(1:n, round(n*p), replace = F)
 
-train   <- data[ train_idx, ]
-test    <- data[-train_idx, ]
-x_train <- data[ train_idx, -16]
-x_test  <- data[-train_idx, -16]
-y_train <- data[ train_idx,  16]
-y_test  <- data[-train_idx,  16] 
+train     <- data[ train_idx, ]
+test      <- data[-train_idx, ]
+x_train   <- data[ train_idx, -16]
+x_test    <- data[-train_idx, -16]
+y_train   <- data[ train_idx,  16]
+y_test    <- data[-train_idx,  16] 
 ```
 
 Lastly, because we will later use methods like Lasso, we already
@@ -97,14 +97,15 @@ summary(fit_full_frequentist)
 
 We observe that there are several non-important variables.
 Out target is to get rid of them and use a smaller selection
-of predictors using Lasso to find parameter.
+of predictors using Lasso with the one standard error rule
+to find parameter.
 
 ```{r}
 optimal_lambda <- 0.0
 
 for (i in 1:10) {
     cv_lasso       <- cv.glmnet(x_sc, y_sc, alpha = 1, nfolds = 10)
-    optimal_lambda <- optimal_lambda + cv_lasso$lambda.1se
+    optimal_lambda <- optimal_lambda + cv_lasso$lambda.1se #1SE rule
 }
 
 optimal_lambda   <- optimal_lambda / 10
@@ -115,6 +116,12 @@ selected_vars    <- rownames(mod_lasso$beta)[selected_idx]
 lhs_formula_fit  <- "SalePrice ~ "
 rhs_formula_fit  <- paste(selected_vars, collapse = " + ")
 formula_fit      <- as.formula(paste(lhs_formula_fit, rhs_formula_fit))
+```
+
+The predictors considered by Lasso are the following ones:
+
+```{r}
+selected_vars
 ```
 
 Now we can repeat the fit but only using the predictors
@@ -143,16 +150,16 @@ We will take the best as the "control" for the latter comparison
 with Bayesian methods.
 
 ```{r}
-rmse_frequentist <- data.frame(
-    full = rmse(pred_full_frequentist,  y_test),
-    laso = rmse(pred_lasso_frequentist, y_test),
-    step = rmse(pred_step_frequentist,  y_test)
-)
-rmse_frequentist
+(rmse_frequentist <- data.frame(
+    full  = rmse(pred_full_frequentist,  y_test),
+    lasso = rmse(pred_lasso_frequentist, y_test),
+    step  = rmse(pred_step_frequentist,  y_test)
+))
 ```
 
 ## Bayesian Approach
 
+Now, for the bayesian approach, we are going to use the `MCMCglmm` function from the namesake package. To start with, we will use all variables and we will use a non-informative prior (default value already in the function, with $m=0$ and $V = 10^{10} \cdot I$)
 
 ```{r}
 f <- formula(paste("SalePrice ~", paste(names(x_train), collapse = " + ")))
@@ -162,7 +169,8 @@ summary(base_bayes_model)
 ```
 
 
-Lets plot the distribution of the parameters
+Lets plot the posterior distribution of all the parameters
+of the model, along with its traces and ACFs.
 
 ```{r}
 traces    <- as.data.frame(base_bayes_model$Sol)
@@ -193,15 +201,43 @@ for (v in var_names) {
 }
 ```
 
+We can compare the values of the parameters obtained with the frequentist and bayesian approach:
+
 ```{r}
 f_vs_b <- cbind(fit_full_frequentist$coefficients, colMeans(base_bayes_model$Sol))
 colnames(f_vs_b) <- c("Frequentist","Bayesian")
 format(f_vs_b, scientific = 999)
 ```
+The values are very similar to the ones obtained with the classical MLE.
+This is because we have used non-informative priors.
+
+And check the RMSR of the bayesian model:
+
+```{r}
+rmse(bayesian_preds,y_test)
+```
+It is a good value, only having obtained a lower value with the non-Bayesian step model.
 
 ## Using a manual prior distibution
 
-Using an uninformative prior distribution
+Using a manual prior distribution **igual tenemos que buscar una prior mejor**
+
+
+```{r}
+
+lambda    <- 1e-5
+reg.prior <- list(
+    B = list(mu = rep(0, length(x_train) + 1),
+    V = diag(1 , length(x_train) + 1)))
+
+data <- as.data.frame(sc)
+scaled_tets <- scale(test)
+base_bayes_model_mprior <- MCMCglmm(f, prior = reg.prior,
+                                           data = data, verbose = FALSE)
+bayesian_mprior_preds   <- predict(base_bayes_model_mprior, scale(test))
+summary(base_bayes_model_mprior)
+```
+
 
 ```{r}
 lambda    <- 1e-5
@@ -209,10 +245,10 @@ reg.prior <- list(
     B = list(mu = rep(0, length(x_train) + 1),
     V = diag(1 / lambda, length(x_train) + 1)))
 
-base_bayes_model_uninformative <- MCMCglmm(f, prior = reg.prior,
+base_bayes_model_mprior <- MCMCglmm(f, prior = reg.prior,
                                            data = train, verbose = FALSE)
-bayesian_uninformative_preds   <- predict(base_bayes_model_uninformative, test)
-summary(base_bayes_model_uninformative)
+bayesian_mprior_preds   <- predict(base_bayes_model_mprior, test)
+summary(base_bayes_model_mprior)
 ```
 
 ### Blasso
@@ -264,7 +300,7 @@ bd %>%
 ```{r}
 rmse_bayesian <- data.frame(
     base          = rmse(bayesian_preds,  y_test),
-    uninformative = rmse(bayesian_uninformative_preds, y_test),
+    uninformative = rmse(bayesian_mprior_preds, y_test),
     blasso        = rmse(basso_preds, y_test)
 )
 rmse_bayesian
