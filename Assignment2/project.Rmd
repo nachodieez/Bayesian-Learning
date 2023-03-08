@@ -216,55 +216,83 @@ And check the RMSR of the bayesian model:
 ```{r}
 rmse(bayesian_preds,y_test)
 ```
-It is a good value, only having obtained a lower value with the non-Bayesian step model.
+It is also very similar to the ones obtained with classical MLE.
 
-## Using a manual prior distibution
+### Using a manual prior distibution
 
-Using a manual prior distribution **igual tenemos que buscar una prior mejor**
+We will now try to set a manual prior distribution, with information that we assume to be relevant, and we will check if the model generated in this way gives us better results than with the previously used informative prior distribution.
 
+#### Attempt 1
 
-```{r}
-
-lambda    <- 1e-5
-reg.prior <- list(
-    B = list(mu = rep(0, length(x_train) + 1),
-    V = diag(1 , length(x_train) + 1)))
-
-data <- as.data.frame(sc)
-scaled_tets <- scale(test)
-base_bayes_model_mprior <- MCMCglmm(f, prior = reg.prior,
-                                           data = data, verbose = FALSE)
-bayesian_mprior_preds   <- predict(base_bayes_model_mprior, scale(test))
-summary(base_bayes_model_mprior)
-```
-
+Using a prior $\mathcal{N}(0,\,1)$ for every 
 
 ```{r}
 lambda    <- 1e-5
 reg.prior <- list(
     B = list(mu = rep(0, length(x_train) + 1),
-    V = diag(1 / lambda, length(x_train) + 1)))
+    V = diag(1 / lambda, length(x_train) + 1))
+)
 
 base_bayes_model_mprior <- MCMCglmm(f, prior = reg.prior,
-                                           data = train, verbose = FALSE)
+                                           data = train, 
+                                    verbose = FALSE)
 bayesian_mprior_preds   <- predict(base_bayes_model_mprior, test)
 summary(base_bayes_model_mprior)
+rmse(bayesian_mprior_preds, y_test)
 ```
+
+#### Attempt 2
+
+Using a prior $\mathcal{N}(\mu_i,\,\sigma^2)$ 
+
+- $\mu_i$: Mean of the variable $i$ in the training set.
+- $\sigma^2$: 1/1e-5.
+
+```{r}
+lambda    <- 1e-5
+reg.prior <- list(
+    B = list(
+      mu = c(0,unlist(lapply(x_train, mean), use.names = F)),
+      V  = diag(c(1/lambda,sapply(x_train, var))))
+)
+
+base_bayes_model_mprior <- MCMCglmm(f, prior = reg.prior,
+                                           data = train,
+                                            verbose = FALSE)
+bayesian_mprior_preds   <- predict(base_bayes_model_mprior, test)
+summary(base_bayes_model_mprior)
+rmse(bayesian_mprior_preds, y_test)
+```
+
+#### Attempt 3
+
+Nos quedamos con este, banda
+
+```{r}
+lambda    <- 1e-5
+reg.prior <- list(
+    B = list(
+      mu = c(0,ifelse(lapply(x_train, mean) > 0, 1,-1)),
+      V  = diag(rep(1/lambda,length(x_train) + 1)))
+)
+base_bayes_model_mprior <- MCMCglmm(f, prior = reg.prior,
+                                           data = train,
+                                            verbose = FALSE)
+bayesian_mprior_preds   <- predict(base_bayes_model_mprior, test)
+summary(base_bayes_model_mprior)
+rmse(bayesian_mprior_preds, y_test)
+```
+
 
 ### Blasso
 
+Now let's perform a Bayesian lasso (or BLASSO) to select variables:
 
 ```{r}
 blasso_model <- blasso(x_train, y_train, verb=0)
-selected     <- names(x_train)[summary(blasso_model)$bn0 > 0.95]
-lhs_formula  <- "SalePrice ~ "
-rhs_formula  <- paste(selected, collapse = " + ")
-full_formula <- as.formula(paste(lhs_formula, rhs_formula))
-blasso_bayes_model <- MCMCglmm(full_formula, data = train, verbose = FALSE)
-basso_preds        <- predict(blasso_bayes_model, test)
-summary(blasso_bayes_model)
 ```
 
+Now, let's plot the frequency of the number of variables used:
 
 ```{r}
 pb <- as.data.frame(blasso_model$m)
@@ -281,6 +309,9 @@ ph <- pb %>%
 pl | ph
 ```
 
+It can be seen that the number of variables most often used is 13, although 12 and 14 are also used a large number of times.
+
+The distribution of the values of the different coefficients can be seen in the following chart:
 
 ```{r}
 bd <- as.data.frame(blasso_model$beta)
@@ -294,14 +325,46 @@ bd %>%
     theme(axis.text.x = element_text(angle = 90))
 ```
 
+We can see the probability that each coefficient of the regression is different from 0 with the following code:
+
+```{r}
+summary(blasso_model)$bn0
+```
+As we want to select variables, we will keep those variables for which the coefficient has a probability greater than 95% of being different from 0.
+
+```{r}
+(selected     <- names(x_train)[summary(blasso_model)$bn0 > 0.95])
+```
+
+And we generate a new Bayesian model using only these variables:
+
+```{r}
+lhs_formula  <- "SalePrice ~ "
+rhs_formula  <- paste(selected, collapse = " + ")
+full_formula <- as.formula(paste(lhs_formula, rhs_formula))
+blasso_bayes_model <- MCMCglmm(full_formula, data = train, verbose = FALSE)
+basso_preds        <- predict(blasso_bayes_model, test)
+summary(blasso_bayes_model)
+```
+
 
 ### RMSE  
 
+To conclude this section, we will compare the RMSE of the different Bayesian models generated:
+
 ```{r}
 rmse_bayesian <- data.frame(
-    base          = rmse(bayesian_preds,  y_test),
-    uninformative = rmse(bayesian_mprior_preds, y_test),
-    blasso        = rmse(basso_preds, y_test)
+    base       = rmse(bayesian_preds,  y_test),
+    mprior     = rmse(bayesian_mprior_preds, y_test),
+    blasso     = rmse(basso_preds, y_test)
 )
 rmse_bayesian
 ```
+
+## Conclusion
+
+```{r}
+rmse_bayesian
+rmse_frequentist
+```
+
