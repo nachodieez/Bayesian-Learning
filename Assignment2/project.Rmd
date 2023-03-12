@@ -1,6 +1,9 @@
 ---
-title: "Untitled"
-author: "a"
+title: "Bayesian Learning: Assignment 2"
+author:
+  - José Ignacio Díez Ruiz (100487766)
+  - Carlos Roldán Piñero (100484904)
+  - Pablo Vidal Fernández (100483812)
 date: "March 2023"
 output:
   html_document:
@@ -26,6 +29,9 @@ require("fitdistrplus") || is.null(install.packages("fitdistrplus")) && require(
 require("MCMCglmm")     || is.null(install.packages("MCMCglmm"))     && require("MCMCglmm")
 require("monomvn")      || is.null(install.packages("monomvn"))      && require("monomvn")
 require("patchwork")    || is.null(install.packages("patchwork"))    && require("patchwork")
+require("knitr")        || is.null(install.packages("knitr"))        && require("knitr")
+require("kableExtra")   || is.null(install.packages("kableExtra"))   && require("knitr")
+
 set.seed(42)
 ```
 
@@ -55,7 +61,7 @@ Let us peek into the data:
 
 ```{r}
 data <- read.csv("bayesian_regression_data.csv", sep = ";")
-head(data, 5)
+head(data, 5) %>% kable()
 ```
 
 We will split our data into a train and test partition to compare
@@ -83,7 +89,7 @@ x_sc <- sc[, -16]
 y_sc <- sc[,  16]
 ```
 
-# Frequentist approach
+# Frequentist Approach
 
 We start with the frequentist approach.
 First, we fit a model in which we use all of the variables as
@@ -154,22 +160,22 @@ with Bayesian methods.
     full  = rmse(pred_full_frequentist,  y_test),
     lasso = rmse(pred_lasso_frequentist, y_test),
     step  = rmse(pred_step_frequentist,  y_test)
-))
+)) %>% kable()
 ```
 
-## Bayesian Approach
+# Bayesian Approach
 
-Now, for the bayesian approach, we are going to use the `MCMCglmm` function from the namesake package. To start with, we will use all variables and we will use a non-informative prior (default value already in the function, with $m=0$ and $V = 10^{10} \cdot I$)
+Now, for the Bayesian approach, we are going to use the `MCMCglmm` function from the namesake package. To start with, we will use all variables and we will use a non-informative prior (default value already in the function, with $m=0$ and $V = 10^{10} \cdot I$)
 
 ```{r}
 f <- formula(paste("SalePrice ~", paste(names(x_train), collapse = " + ")))
 base_bayes_model <- MCMCglmm(f, data = train, verbose = FALSE)
 bayesian_preds   <- predict(base_bayes_model, test)
-summary(base_bayes_model)
+summary(base_bayes_model) 
 ```
 
 
-Lets plot the posterior distribution of all the parameters
+Let's plot the posterior distribution of all the parameters
 of the model, along with its traces and ACFs.
 
 ```{r}
@@ -206,67 +212,31 @@ We can compare the values of the parameters obtained with the frequentist and ba
 ```{r}
 f_vs_b <- cbind(fit_full_frequentist$coefficients, colMeans(base_bayes_model$Sol))
 colnames(f_vs_b) <- c("Frequentist","Bayesian")
-format(f_vs_b, scientific = 999)
+format(f_vs_b, scientific = 999) %>% kable()
 ```
 The values are very similar to the ones obtained with the classical MLE.
 This is because we have used non-informative priors.
 
-And check the RMSR of the bayesian model:
+And check the RMSE of the bayesian model:
 
 ```{r}
 rmse(bayesian_preds,y_test)
 ```
+
 It is also very similar to the ones obtained with classical MLE.
 
-### Using a manual prior distibution
+## Using a manual prior distibution
 
 We will now try to set a manual prior distribution, with information that we assume to be relevant, and we will check if the model generated in this way gives us better results than with the previously used informative prior distribution.
 
-#### Attempt 1
 
-Using a prior $\mathcal{N}(0,\,1)$ for every 
+We will use a prior $\mathcal{N}(\mu_i,\,\frac{1}{\lambda})$ for every parameter
+where:
 
-```{r}
-lambda    <- 1e-5
-reg.prior <- list(
-    B = list(mu = rep(0, length(x_train) + 1),
-    V = diag(1 / lambda, length(x_train) + 1))
-)
+- $\mu_i$ equals $1$ if the mean of the variable $i$ is $>0$ and $-1$ otherwise. 
+- $\lambda = \frac{1}{10^5}$
 
-base_bayes_model_mprior <- MCMCglmm(f, prior = reg.prior,
-                                           data = train, 
-                                    verbose = FALSE)
-bayesian_mprior_preds   <- predict(base_bayes_model_mprior, test)
-summary(base_bayes_model_mprior)
-rmse(bayesian_mprior_preds, y_test)
-```
-
-#### Attempt 2
-
-Using a prior $\mathcal{N}(\mu_i,\,\sigma^2)$ 
-
-- $\mu_i$: Mean of the variable $i$ in the training set.
-- $\sigma^2$: 1/1e-5.
-
-```{r}
-lambda    <- 1e-5
-reg.prior <- list(
-    B = list(
-      mu = c(0,unlist(lapply(x_train, mean), use.names = F)),
-      V  = diag(c(1/lambda,sapply(x_train, var))))
-)
-
-base_bayes_model_mprior <- MCMCglmm(f, prior = reg.prior,
-                                           data = train,
-                                            verbose = FALSE)
-bayesian_mprior_preds   <- predict(base_bayes_model_mprior, test)
-summary(base_bayes_model_mprior)
-rmse(bayesian_mprior_preds, y_test)
-```
-
-#### Attempt 3
-
-Nos quedamos con este, banda
+Setting the lambda and prior distribution values:
 
 ```{r}
 lambda    <- 1e-5
@@ -275,24 +245,43 @@ reg.prior <- list(
       mu = c(0,ifelse(lapply(x_train, mean) > 0, 1,-1)),
       V  = diag(rep(1/lambda,length(x_train) + 1)))
 )
+```
+
+Next, we train the model and make the predictions:
+
+```{r}
 base_bayes_model_mprior <- MCMCglmm(f, prior = reg.prior,
-                                           data = train,
-                                            verbose = FALSE)
+                                       data = train,
+                                       verbose = FALSE)
 bayesian_mprior_preds   <- predict(base_bayes_model_mprior, test)
+```
+
+In the following chunk, the summary of the model can be seen:
+
+```{r}
 summary(base_bayes_model_mprior)
+```
+
+Finally, let's compute the RMSE for the model:
+
+```{r}
 rmse(bayesian_mprior_preds, y_test)
 ```
 
+It is worse than for the model with uninformative prior distibution. 
+Probably, the a priori distribution that we have provided is not good enough and it
+is necessary to be an expert in the field in which you are working to be able to
+provide an informative prior distribution.
 
-### Blasso
+## Blasso
 
-Now let's perform a Bayesian lasso (or BLASSO) to select variables:
+Next, let's perform a Bayesian lasso (or BLASSO) to perform the variable selection:
 
 ```{r}
 blasso_model <- blasso(x_train, y_train, verb=0)
 ```
 
-Now, let's plot the frequency of the number of variables used:
+After that, let's plot the frequency of the number of variables used:
 
 ```{r}
 pb <- as.data.frame(blasso_model$m)
@@ -330,41 +319,96 @@ We can see the probability that each coefficient of the regression is different 
 ```{r}
 summary(blasso_model)$bn0
 ```
+
 As we want to select variables, we will keep those variables for which the coefficient has a probability greater than 95% of being different from 0.
 
 ```{r}
-(selected     <- names(x_train)[summary(blasso_model)$bn0 > 0.95])
+(selected <- names(x_train)[summary(blasso_model)$bn0 > 0.95])
 ```
 
-And we generate a new Bayesian model using only these variables:
+And we generate a new Bayesian model using only these variables.
+First, we need to create the formula:
 
 ```{r}
 lhs_formula  <- "SalePrice ~ "
 rhs_formula  <- paste(selected, collapse = " + ")
 full_formula <- as.formula(paste(lhs_formula, rhs_formula))
+```
+
+With the formula already generated, we can train the model and make the predictions.
+
+```{r}
 blasso_bayes_model <- MCMCglmm(full_formula, data = train, verbose = FALSE)
 basso_preds        <- predict(blasso_bayes_model, test)
+```
+
+The summary of the model can be seen in the following chunk:
+
+```{r}
 summary(blasso_bayes_model)
 ```
 
+To finish with BLASSO, we are going to compute the RMSE for the model.
 
-### RMSE  
+```{r}
+rmse(basso_preds, y_test)
+```
 
-To conclude this section, we will compare the RMSE of the different Bayesian models generated:
+
+## RMSE  
+
+In order to conclude this section, we will compare the RMSE of the different Bayesian models generated:
 
 ```{r}
 rmse_bayesian <- data.frame(
-    base       = rmse(bayesian_preds,  y_test),
-    mprior     = rmse(bayesian_mprior_preds, y_test),
-    blasso     = rmse(basso_preds, y_test)
-)
-rmse_bayesian
+    base       = rmse(bayesian_preds, y_test),
+    blasso     = rmse(basso_preds, y_test),
+    mprior     = rmse(bayesian_mprior_preds, y_test)
+    )
+
+rmse_bayesian %>% kable()
 ```
 
-## Conclusion
+
+The best results have been achieved with the base model, being somewhat worse the model
+generated with BLASSO and the model manually selecting the a priori distribution.
+
+# Conclusion
+
+To give the final conclusion, let us first recall the RMSE values for all the
+models we have generated throughout this assignment.
 
 ```{r}
-rmse_bayesian
-rmse_frequentist
+rmses <- data.frame(
+    freq_full    = rmse(pred_full_frequentist,  y_test),
+    freq_lasso   = rmse(pred_lasso_frequentist, y_test),
+    freq_step    = rmse(pred_step_frequentist,  y_test),
+    bayes_base   = rmse(bayesian_preds, y_test),
+    bayes_blasso = rmse(basso_preds, y_test),
+    bayes_mprior = rmse(bayesian_mprior_preds, y_test)
+)
+
+rmses %>% kable(
+  caption = "RMSEs for the different models"
+  )
 ```
+
+
+
+
+
+
+The table shows that the model with which we have obtained the best results is the
+frequentist lasso model. We also believe it is important to highlight that the worst
+frequentist model (full) gave better results than the best Bayesian model (base, i.e.
+with an a priori non-informative distribution). As mentioned above, this model is
+practically equivalent to the full frequentist model.
+
+As a final remark, we have not obtained optimal results for our problem using Bayesian
+methods, but if we had more information about the possible distribution of the
+parameters, it is likely that we would have obtained better results with the Bayesian
+approach than with the frequentist approach.
+
+
+
 
