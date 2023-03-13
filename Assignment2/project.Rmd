@@ -55,6 +55,43 @@ We have chosen a dataset which includes the housing prices for
 a region, along with different factors.
 The idea is to try and see whether we may predict the price based
 on the rest of predictors.
+
+We have the following variables: 
+
+-   Overall Quality: rates the overall material and finish of the house.
+
+-   Overall Condition: rates the overall condition of the house.
+
+-   Number of years since remodelation of the house.
+
+-   Masonry veneer area: in square feet.
+
+-   Finished basement area of type 1: in square feet.
+
+-   Total area of finished basement: in square feet.
+
+-   First floor area: in square feet.
+
+-   Above ground living area: in square feet.
+
+-   Full bathrooms above grade.
+
+-   Kitchens above grade.
+
+-   Total rooms above grade (not counting bathrooms).
+
+-   Number of fireplaces.
+
+-   Year of construction of the garage.
+
+-   Size of garage in car capacity.
+
+-   Total area of garage: in square feet.
+
+-   Price of the sale.
+
+All of the variables are quantitative.
+
 Let us peek into the data:
 
 ```{r}
