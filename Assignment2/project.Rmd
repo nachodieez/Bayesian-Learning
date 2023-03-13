@@ -29,8 +29,6 @@ require("fitdistrplus") || is.null(install.packages("fitdistrplus")) && require(
 require("MCMCglmm")     || is.null(install.packages("MCMCglmm"))     && require("MCMCglmm")
 require("monomvn")      || is.null(install.packages("monomvn"))      && require("monomvn")
 require("patchwork")    || is.null(install.packages("patchwork"))    && require("patchwork")
-require("knitr")        || is.null(install.packages("knitr"))        && require("knitr")
-require("kableExtra")   || is.null(install.packages("kableExtra"))   && require("knitr")
 
 set.seed(42)
 ```
@@ -61,7 +59,7 @@ Let us peek into the data:
 
 ```{r}
 data <- read.csv("bayesian_regression_data.csv", sep = ";")
-head(data, 5) %>% kable()
+head(data, 5)
 ```
 
 We will split our data into a train and test partition to compare
@@ -160,7 +158,7 @@ with Bayesian methods.
     full  = rmse(pred_full_frequentist,  y_test),
     lasso = rmse(pred_lasso_frequentist, y_test),
     step  = rmse(pred_step_frequentist,  y_test)
-)) %>% kable()
+))
 ```
 
 # Bayesian Approach
@@ -212,7 +210,7 @@ We can compare the values of the parameters obtained with the frequentist and ba
 ```{r}
 f_vs_b <- cbind(fit_full_frequentist$coefficients, colMeans(base_bayes_model$Sol))
 colnames(f_vs_b) <- c("Frequentist","Bayesian")
-format(f_vs_b, scientific = 999) %>% kable()
+format(f_vs_b, scientific = 999)
 ```
 The values are very similar to the ones obtained with the classical MLE.
 This is because we have used non-informative priors.
@@ -366,7 +364,7 @@ rmse_bayesian <- data.frame(
     mprior     = rmse(bayesian_mprior_preds, y_test)
     )
 
-rmse_bayesian %>% kable()
+rmse_bayesian
 ```
 
 
@@ -388,9 +386,7 @@ rmses <- data.frame(
     bayes_mprior = rmse(bayesian_mprior_preds, y_test)
 )
 
-rmses %>% kable(
-  caption = "RMSEs for the different models"
-  )
+rmses
 ```
 
 

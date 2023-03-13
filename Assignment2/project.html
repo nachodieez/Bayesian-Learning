@@ -1524,8 +1524,6 @@ require(&quot;fitdistrplus&quot;) || is.null(install.packages(&quot;fitdistrplus
 require(&quot;MCMCglmm&quot;)     || is.null(install.packages(&quot;MCMCglmm&quot;))     &amp;&amp; require(&quot;MCMCglmm&quot;)
 require(&quot;monomvn&quot;)      || is.null(install.packages(&quot;monomvn&quot;))      &amp;&amp; require(&quot;monomvn&quot;)
 require(&quot;patchwork&quot;)    || is.null(install.packages(&quot;patchwork&quot;))    &amp;&amp; require(&quot;patchwork&quot;)
-require(&quot;knitr&quot;)        || is.null(install.packages(&quot;knitr&quot;))        &amp;&amp; require(&quot;knitr&quot;)
-require(&quot;kableExtra&quot;)   || is.null(install.packages(&quot;kableExtra&quot;))   &amp;&amp; require(&quot;knitr&quot;)
 
 set.seed(42)</code></pre>
 <p>We will also require a root mean square error function to be used
@@ -1547,313 +1545,25 @@ region, along with different factors. The idea is to try and see whether
 we may predict the price based on the rest of predictors. Let us peek
 into the data:</p>
 <pre class="r"><code>data &lt;- read.csv(&quot;bayesian_regression_data.csv&quot;, sep = &quot;;&quot;)
-head(data, 5) %&gt;% kable()</code></pre>
-<table>
-<thead>
-<tr>
-<th style="text-align:right;">
-OverallQual
-</th>
-<th style="text-align:right;">
-OverallCond
-</th>
-<th style="text-align:right;">
-YearRemodAdd
-</th>
-<th style="text-align:right;">
-MasVnrArea
-</th>
-<th style="text-align:right;">
-BsmtFinSF1
-</th>
-<th style="text-align:right;">
-TotalBsmtSF
-</th>
-<th style="text-align:right;">
-X1stFlrSF
-</th>
-<th style="text-align:right;">
-GrLivArea
-</th>
-<th style="text-align:right;">
-FullBath
-</th>
-<th style="text-align:right;">
-KitchenAbvGr
-</th>
-<th style="text-align:right;">
-TotRmsAbvGrd
-</th>
-<th style="text-align:right;">
-Fireplaces
-</th>
-<th style="text-align:right;">
-GarageYrBlt
-</th>
-<th style="text-align:right;">
-GarageCars
-</th>
-<th style="text-align:right;">
-GarageArea
-</th>
-<th style="text-align:right;">
-SalePrice
-</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td style="text-align:right;">
-7
-</td>
-<td style="text-align:right;">
-5
-</td>
-<td style="text-align:right;">
-5
-</td>
-<td style="text-align:right;">
-196
-</td>
-<td style="text-align:right;">
-706
-</td>
-<td style="text-align:right;">
-856
-</td>
-<td style="text-align:right;">
-856
-</td>
-<td style="text-align:right;">
-1710
-</td>
-<td style="text-align:right;">
-2
-</td>
-<td style="text-align:right;">
-1
-</td>
-<td style="text-align:right;">
-8
-</td>
-<td style="text-align:right;">
-0
-</td>
-<td style="text-align:right;">
-2003
-</td>
-<td style="text-align:right;">
-2
-</td>
-<td style="text-align:right;">
-548
-</td>
-<td style="text-align:right;">
-208500
-</td>
-</tr>
-<tr>
-<td style="text-align:right;">
-6
-</td>
-<td style="text-align:right;">
-8
-</td>
-<td style="text-align:right;">
-31
-</td>
-<td style="text-align:right;">
-0
-</td>
-<td style="text-align:right;">
-978
-</td>
-<td style="text-align:right;">
-1262
-</td>
-<td style="text-align:right;">
-1262
-</td>
-<td style="text-align:right;">
-1262
-</td>
-<td style="text-align:right;">
-2
-</td>
-<td style="text-align:right;">
-1
-</td>
-<td style="text-align:right;">
-6
-</td>
-<td style="text-align:right;">
-1
-</td>
-<td style="text-align:right;">
-1976
-</td>
-<td style="text-align:right;">
-2
-</td>
-<td style="text-align:right;">
-460
-</td>
-<td style="text-align:right;">
-181500
-</td>
-</tr>
-<tr>
-<td style="text-align:right;">
-7
-</td>
-<td style="text-align:right;">
-5
-</td>
-<td style="text-align:right;">
-6
-</td>
-<td style="text-align:right;">
-162
-</td>
-<td style="text-align:right;">
-486
-</td>
-<td style="text-align:right;">
-920
-</td>
-<td style="text-align:right;">
-920
-</td>
-<td style="text-align:right;">
-1786
-</td>
-<td style="text-align:right;">
-2
-</td>
-<td style="text-align:right;">
-1
-</td>
-<td style="text-align:right;">
-6
-</td>
-<td style="text-align:right;">
-1
-</td>
-<td style="text-align:right;">
-2001
-</td>
-<td style="text-align:right;">
-2
-</td>
-<td style="text-align:right;">
-608
-</td>
-<td style="text-align:right;">
-223500
-</td>
-</tr>
-<tr>
-<td style="text-align:right;">
-7
-</td>
-<td style="text-align:right;">
-5
-</td>
-<td style="text-align:right;">
-36
-</td>
-<td style="text-align:right;">
-0
-</td>
-<td style="text-align:right;">
-216
-</td>
-<td style="text-align:right;">
-756
-</td>
-<td style="text-align:right;">
-961
-</td>
-<td style="text-align:right;">
-1717
-</td>
-<td style="text-align:right;">
-1
-</td>
-<td style="text-align:right;">
-1
-</td>
-<td style="text-align:right;">
-7
-</td>
-<td style="text-align:right;">
-1
-</td>
-<td style="text-align:right;">
-1998
-</td>
-<td style="text-align:right;">
-3
-</td>
-<td style="text-align:right;">
-642
-</td>
-<td style="text-align:right;">
-140000
-</td>
-</tr>
-<tr>
-<td style="text-align:right;">
-8
-</td>
-<td style="text-align:right;">
-5
-</td>
-<td style="text-align:right;">
-8
-</td>
-<td style="text-align:right;">
-350
-</td>
-<td style="text-align:right;">
-655
-</td>
-<td style="text-align:right;">
-1145
-</td>
-<td style="text-align:right;">
-1145
-</td>
-<td style="text-align:right;">
-2198
-</td>
-<td style="text-align:right;">
-2
-</td>
-<td style="text-align:right;">
-1
-</td>
-<td style="text-align:right;">
-9
-</td>
-<td style="text-align:right;">
-1
-</td>
-<td style="text-align:right;">
-2000
-</td>
-<td style="text-align:right;">
-3
-</td>
-<td style="text-align:right;">
-836
-</td>
-<td style="text-align:right;">
-250000
-</td>
-</tr>
-</tbody>
-</table>
+head(data, 5)</code></pre>
+<pre><code>##   OverallQual OverallCond YearRemodAdd MasVnrArea BsmtFinSF1 TotalBsmtSF
+## 1           7           5            5        196        706         856
+## 2           6           8           31          0        978        1262
+## 3           7           5            6        162        486         920
+## 4           7           5           36          0        216         756
+## 5           8           5            8        350        655        1145
+##   X1stFlrSF GrLivArea FullBath KitchenAbvGr TotRmsAbvGrd Fireplaces GarageYrBlt
+## 1       856      1710        2            1            8          0        2003
+## 2      1262      1262        2            1            6          1        1976
+## 3       920      1786        2            1            6          1        2001
+## 4       961      1717        1            1            7          1        1998
+## 5      1145      2198        2            1            9          1        2000
+##   GarageCars GarageArea SalePrice
+## 1          2        548    208500
+## 2          2        460    181500
+## 3          2        608    223500
+## 4          3        642    140000
+## 5          3        836    250000</code></pre>
 <p>We will split our data into a train and test partition to compare the
 different fits.</p>
 <pre class="r"><code>p         &lt;- 0.8
@@ -2007,35 +1717,9 @@ summary(fit_step_frequentist)</code></pre>
     full  = rmse(pred_full_frequentist,  y_test),
     lasso = rmse(pred_lasso_frequentist, y_test),
     step  = rmse(pred_step_frequentist,  y_test)
-)) %&gt;% kable()</code></pre>
-<table>
-<thead>
-<tr>
-<th style="text-align:right;">
-full
-</th>
-<th style="text-align:right;">
-lasso
-</th>
-<th style="text-align:right;">
-step
-</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td style="text-align:right;">
-2099.026
-</td>
-<td style="text-align:right;">
-2062.35
-</td>
-<td style="text-align:right;">
-2097.832
-</td>
-</tr>
-</tbody>
-</table>
+))</code></pre>
+<pre><code>##       full   lasso     step
+## 1 2099.026 2062.35 2097.832</code></pre>
 </div>
 <div id="bayesian-approach" class="section level1">
 <h1>Bayesian Approach</h1>
@@ -2114,199 +1798,24 @@ for (v in var_names) {
 frequentist and bayesian approach:</p>
 <pre class="r"><code>f_vs_b &lt;- cbind(fit_full_frequentist$coefficients, colMeans(base_bayes_model$Sol))
 colnames(f_vs_b) &lt;- c(&quot;Frequentist&quot;,&quot;Bayesian&quot;)
-format(f_vs_b, scientific = 999) %&gt;% kable()</code></pre>
-<table>
-<thead>
-<tr>
-<th style="text-align:left;">
-</th>
-<th style="text-align:left;">
-Frequentist
-</th>
-<th style="text-align:left;">
-Bayesian
-</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td style="text-align:left;">
-(Intercept)
-</td>
-<td style="text-align:left;">
--270124.464240
-</td>
-<td style="text-align:left;">
--90009.363158
-</td>
-</tr>
-<tr>
-<td style="text-align:left;">
-OverallQual
-</td>
-<td style="text-align:left;">
-18127.999053
-</td>
-<td style="text-align:left;">
-18326.151971
-</td>
-</tr>
-<tr>
-<td style="text-align:left;">
-OverallCond
-</td>
-<td style="text-align:left;">
-2828.203460
-</td>
-<td style="text-align:left;">
-2288.875660
-</td>
-</tr>
-<tr>
-<td style="text-align:left;">
-YearRemodAdd
-</td>
-<td style="text-align:left;">
--342.965374
-</td>
-<td style="text-align:left;">
--389.315576
-</td>
-</tr>
-<tr>
-<td style="text-align:left;">
-MasVnrArea
-</td>
-<td style="text-align:left;">
-39.381754
-</td>
-<td style="text-align:left;">
-39.855935
-</td>
-</tr>
-<tr>
-<td style="text-align:left;">
-BsmtFinSF1
-</td>
-<td style="text-align:left;">
-18.529579
-</td>
-<td style="text-align:left;">
-18.722659
-</td>
-</tr>
-<tr>
-<td style="text-align:left;">
-TotalBsmtSF
-</td>
-<td style="text-align:left;">
-10.093217
-</td>
-<td style="text-align:left;">
-10.137428
-</td>
-</tr>
-<tr>
-<td style="text-align:left;">
-X1stFlrSF
-</td>
-<td style="text-align:left;">
-10.938027
-</td>
-<td style="text-align:left;">
-10.374395
-</td>
-</tr>
-<tr>
-<td style="text-align:left;">
-GrLivArea
-</td>
-<td style="text-align:left;">
-23.776142
-</td>
-<td style="text-align:left;">
-22.902870
-</td>
-</tr>
-<tr>
-<td style="text-align:left;">
-FullBath
-</td>
-<td style="text-align:left;">
-6172.554101
-</td>
-<td style="text-align:left;">
-7074.389136
-</td>
-</tr>
-<tr>
-<td style="text-align:left;">
-KitchenAbvGr
-</td>
-<td style="text-align:left;">
--27375.865262
-</td>
-<td style="text-align:left;">
--27854.931767
-</td>
-</tr>
-<tr>
-<td style="text-align:left;">
-TotRmsAbvGrd
-</td>
-<td style="text-align:left;">
-5077.204971
-</td>
-<td style="text-align:left;">
-5002.310911
-</td>
-</tr>
-<tr>
-<td style="text-align:left;">
-Fireplaces
-</td>
-<td style="text-align:left;">
-7820.851422
-</td>
-<td style="text-align:left;">
-7548.636766
-</td>
-</tr>
-<tr>
-<td style="text-align:left;">
-GarageYrBlt
-</td>
-<td style="text-align:left;">
-109.417081
-</td>
-<td style="text-align:left;">
-19.606722
-</td>
-</tr>
-<tr>
-<td style="text-align:left;">
-GarageCars
-</td>
-<td style="text-align:left;">
-13316.153415
-</td>
-<td style="text-align:left;">
-13260.332051
-</td>
-</tr>
-<tr>
-<td style="text-align:left;">
-GarageArea
-</td>
-<td style="text-align:left;">
-2.986633
-</td>
-<td style="text-align:left;">
-7.180216
-</td>
-</tr>
-</tbody>
-</table>
+format(f_vs_b, scientific = 999)</code></pre>
+<pre><code>##              Frequentist      Bayesian        
+## (Intercept)  &quot;-270124.464240&quot; &quot; -90009.363158&quot;
+## OverallQual  &quot;  18127.999053&quot; &quot;  18326.151971&quot;
+## OverallCond  &quot;   2828.203460&quot; &quot;   2288.875660&quot;
+## YearRemodAdd &quot;   -342.965374&quot; &quot;   -389.315576&quot;
+## MasVnrArea   &quot;     39.381754&quot; &quot;     39.855935&quot;
+## BsmtFinSF1   &quot;     18.529579&quot; &quot;     18.722659&quot;
+## TotalBsmtSF  &quot;     10.093217&quot; &quot;     10.137428&quot;
+## X1stFlrSF    &quot;     10.938027&quot; &quot;     10.374395&quot;
+## GrLivArea    &quot;     23.776142&quot; &quot;     22.902870&quot;
+## FullBath     &quot;   6172.554101&quot; &quot;   7074.389136&quot;
+## KitchenAbvGr &quot; -27375.865262&quot; &quot; -27854.931767&quot;
+## TotRmsAbvGrd &quot;   5077.204971&quot; &quot;   5002.310911&quot;
+## Fireplaces   &quot;   7820.851422&quot; &quot;   7548.636766&quot;
+## GarageYrBlt  &quot;    109.417081&quot; &quot;     19.606722&quot;
+## GarageCars   &quot;  13316.153415&quot; &quot;  13260.332051&quot;
+## GarageArea   &quot;      2.986633&quot; &quot;      7.180216&quot;</code></pre>
 <p>The values are very similar to the ones obtained with the classical
 MLE. This is because we have used non-informative priors.</p>
 <p>And check the RMSE of the bayesian model:</p>
@@ -2480,35 +1989,9 @@ different Bayesian models generated:</p>
     mprior     = rmse(bayesian_mprior_preds, y_test)
     )
 
-rmse_bayesian %&gt;% kable()</code></pre>
-<table>
-<thead>
-<tr>
-<th style="text-align:right;">
-base
-</th>
-<th style="text-align:right;">
-blasso
-</th>
-<th style="text-align:right;">
-mprior
-</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td style="text-align:right;">
-2100.984
-</td>
-<td style="text-align:right;">
-2154.931
-</td>
-<td style="text-align:right;">
-2233.114
-</td>
-</tr>
-</tbody>
-</table>
+rmse_bayesian</code></pre>
+<pre><code>##       base   blasso   mprior
+## 1 2100.984 2154.931 2233.114</code></pre>
 <p>The best results have been achieved with the base model, being
 somewhat worse the model generated with BLASSO and the model manually
 selecting the a priori distribution.</p>
@@ -2527,58 +2010,9 @@ all the models we have generated throughout this assignment.</p>
     bayes_mprior = rmse(bayesian_mprior_preds, y_test)
 )
 
-rmses %&gt;% kable(
-  caption = &quot;RMSEs for the different models&quot;
-  )</code></pre>
-<table>
-<caption>
-RMSEs for the different models
-</caption>
-<thead>
-<tr>
-<th style="text-align:right;">
-freq_full
-</th>
-<th style="text-align:right;">
-freq_lasso
-</th>
-<th style="text-align:right;">
-freq_step
-</th>
-<th style="text-align:right;">
-bayes_base
-</th>
-<th style="text-align:right;">
-bayes_blasso
-</th>
-<th style="text-align:right;">
-bayes_mprior
-</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td style="text-align:right;">
-2099.026
-</td>
-<td style="text-align:right;">
-2062.35
-</td>
-<td style="text-align:right;">
-2097.832
-</td>
-<td style="text-align:right;">
-2100.984
-</td>
-<td style="text-align:right;">
-2154.931
-</td>
-<td style="text-align:right;">
-2233.114
-</td>
-</tr>
-</tbody>
-</table>
+rmses</code></pre>
+<pre><code>##   freq_full freq_lasso freq_step bayes_base bayes_blasso bayes_mprior
+## 1  2099.026    2062.35  2097.832   2100.984     2154.931     2233.114</code></pre>
 <p>The table shows that the model with which we have obtained the best
 results is the frequentist lasso model. We also believe it is important
 to highlight that the worst frequentist model (full) gave better results
