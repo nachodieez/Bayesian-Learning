@@ -11,21 +11,39 @@ knitr::opts_chunk$set(echo = TRUE)
 
 
 ```{r}
-library(tidyverse)
-library(lubridate)
-library(fpp3)
+i.p <- (\(x) is.null(install.packages(x, repos = "https://cran.rediris.es")))
+require(tidyverse)  || i.p("tidyverse")  && require(tidyverse)
+require(lubridate)  || i.p("lubridate")  && require(lubridate)
+require(fpp3)       || i.p("fpp3")       && require(fpp3)
+require(fable)      || i.p("fable")      && require(fable)
+require(fabletools) || i.p("fabletools") && require(fabletools)
 ```
 
 
 ```{r}
-co2 <-  read.table("https://www.esrl.noaa.gov/gmd/webdata/ccgg/trends/co2/co2_mm_mlo.txt")
-temp <- read.csv("https://data.giss.nasa.gov/gistemp/tabledata_v4/GLB.Ts+dSST.csv", header=T, skip=1, sep=",", na.strings="***")
+co2  <- read.table("https://www.esrl.noaa.gov/gmd/webdata/ccgg/trends/co2/co2_mm_mlo.txt")
+temp <- read.csv("https://data.giss.nasa.gov/gistemp/tabledata_v4/GLB.Ts+dSST.csv",
+                 header = TRUE, skip = 1, sep = ",", na.strings = "***")
+
+co2     <- ts(co2[,5], start = c(1958, 3), frequency = 12)
+co2_ts  <- co2 %>% as_tsibble()
+temp    <- ts(as.vector(t(temp[,2:13])), start = c(1880, 1), frequency = 12) %>% drop_na()
+temp_ts <- temp %>% as_tsibble()
 ```
 
 
 ```{r}
-co2 %>% head()
+temp_ts %>% 
+    filter(year(index) > 1958) %>% 
+    autoplot(color = "#8B008B") +
+        labs(title = "Mean monthly anomaly temperature [°C]",
+             x = "", y = "")
 ```
+
+
+
+#### De aqui para abajo NACHO
+
 
 Wild -99.99
 
