@@ -27,8 +27,9 @@ temp <- read.csv("https://data.giss.nasa.gov/gistemp/tabledata_v4/GLB.Ts+dSST.cs
 
 co2     <- ts(co2[,5], start = c(1958, 3), frequency = 12)
 co2_ts  <- co2 %>% as_tsibble()
-temp    <- ts(as.vector(t(temp[,2:13])), start = c(1880, 1), frequency = 12) %>% drop_na()
-temp_ts <- temp %>% as_tsibble()
+temp_ts <- ts(as.vector(t(temp[,2:13])), start = c(1880, 1), frequency = 12) %>%
+    as_tsibble() %>% drop_na()
+temp    <- temp_ts %>% as.ts()
 ```
 
 
