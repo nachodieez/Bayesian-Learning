@@ -252,7 +252,7 @@ format(f_vs_b, scientific = 999)
 The values are very similar to the ones obtained with the classical MLE.
 This is because we have used non-informative priors.
 
-And check the RMSE of the bayesian model:
+And check the RMSE of the Bayesian model:
 
 ```{r}
 rmse(bayesian_preds,y_test)
@@ -268,8 +268,41 @@ We will now try to set a manual prior distribution, with information that we ass
 We will use a prior $\mathcal{N}(\mu_i,\,\frac{1}{\lambda})$ for every parameter
 where:
 
-- $\mu_i$ equals $1$ if the mean of the variable $i$ is $>0$ and $-1$ otherwise. 
+- $\mu_i$ equals $1$ if we think that the variable $i$ will have a positive impact on the price and $-1$ otherwise. 
 - $\lambda = \frac{1}{10^5}$
+
+The selected values for each variable are the following:
+
+
+-   Overall Quality -> 1
+
+-   Overall Condition -> 1
+
+-   Number of years since remodelation of the house -> -1
+
+-   Masonry veneer area -> 1
+
+-   Finished basement area of type 1 -> 1
+
+-   Total area of finished basement -> 1
+
+-   First floor area -> 1
+
+-   Above ground living area -> 0
+
+-   Full bathrooms above grade -> 1
+
+-   Kitchens above grade -> 1
+
+-   Total rooms above grade -> 1
+
+-   Number of fireplaces -> 1
+
+-   Year of construction of the garage -> 1
+
+-   Size of garage in car capacity -> 1
+
+-   Total area of garage -> 1
 
 Setting the lambda and prior distribution values:
 
@@ -277,7 +310,7 @@ Setting the lambda and prior distribution values:
 lambda    <- 1e-5
 reg.prior <- list(
     B = list(
-      mu = c(0,ifelse(lapply(x_train, mean) > 0, 1,-1)),
+      mu = c((1),1,1,-1,1,1,1,1,0,1,1,1,1,1,1,1),
       V  = diag(rep(1/lambda,length(x_train) + 1)))
 )
 ```
@@ -425,10 +458,6 @@ rmses <- data.frame(
 
 rmses
 ```
-
-
-
-
 
 
 The table shows that the model with which we have obtained the best results is the

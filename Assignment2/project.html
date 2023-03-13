@@ -1542,8 +1542,30 @@ later when testing the different fits.</p>
 <h1>Introduction</h1>
 <p>We have chosen a dataset which includes the housing prices for a
 region, along with different factors. The idea is to try and see whether
-we may predict the price based on the rest of predictors. Let us peek
-into the data:</p>
+we may predict the price based on the rest of predictors.</p>
+<p>We have the following variables:</p>
+<ul>
+<li><p>Overall Quality: rates the overall material and finish of the
+house.</p></li>
+<li><p>Overall Condition: rates the overall condition of the
+house.</p></li>
+<li><p>Number of years since remodelation of the house.</p></li>
+<li><p>Masonry veneer area: in square feet.</p></li>
+<li><p>Finished basement area of type 1: in square feet.</p></li>
+<li><p>Total area of finished basement: in square feet.</p></li>
+<li><p>First floor area: in square feet.</p></li>
+<li><p>Above ground living area: in square feet.</p></li>
+<li><p>Full bathrooms above grade.</p></li>
+<li><p>Kitchens above grade.</p></li>
+<li><p>Total rooms above grade (not counting bathrooms).</p></li>
+<li><p>Number of fireplaces.</p></li>
+<li><p>Year of construction of the garage.</p></li>
+<li><p>Size of garage in car capacity.</p></li>
+<li><p>Total area of garage: in square feet.</p></li>
+<li><p>Price of the sale.</p></li>
+</ul>
+<p>All of the variables are quantitative.</p>
+<p>Let us peek into the data:</p>
 <pre class="r"><code>data &lt;- read.csv(&quot;bayesian_regression_data.csv&quot;, sep = &quot;;&quot;)
 head(data, 5)</code></pre>
 <pre><code>##   OverallQual OverallCond YearRemodAdd MasVnrArea BsmtFinSF1 TotalBsmtSF
@@ -1818,7 +1840,7 @@ format(f_vs_b, scientific = 999)</code></pre>
 ## GarageArea   &quot;      2.986633&quot; &quot;      7.180216&quot;</code></pre>
 <p>The values are very similar to the ones obtained with the classical
 MLE. This is because we have used non-informative priors.</p>
-<p>And check the RMSE of the bayesian model:</p>
+<p>And check the RMSE of the Bayesian model:</p>
 <pre class="r"><code>rmse(bayesian_preds,y_test)</code></pre>
 <pre><code>## [1] 2100.984</code></pre>
 <p>It is also very similar to the ones obtained with classical MLE.</p>
@@ -1831,14 +1853,33 @@ informative prior distribution.</p>
 <p>We will use a prior <span class="math inline">\(\mathcal{N}(\mu_i,\,\frac{1}{\lambda})\)</span>
 for every parameter where:</p>
 <ul>
-<li><span class="math inline">\(\mu_i\)</span> equals <span class="math inline">\(1\)</span> if the mean of the variable <span class="math inline">\(i\)</span> is <span class="math inline">\(&gt;0\)</span> and <span class="math inline">\(-1\)</span> otherwise.</li>
+<li><span class="math inline">\(\mu_i\)</span> equals <span class="math inline">\(1\)</span> if we think that the variable <span class="math inline">\(i\)</span> will have a positive impact on the
+price and <span class="math inline">\(-1\)</span> otherwise.</li>
 <li><span class="math inline">\(\lambda = \frac{1}{10^5}\)</span></li>
+</ul>
+<p>The selected values for each variable are the following:</p>
+<ul>
+<li><p>Overall Quality -&gt; 1</p></li>
+<li><p>Overall Condition -&gt; 1</p></li>
+<li><p>Number of years since remodelation of the house -&gt; -1</p></li>
+<li><p>Masonry veneer area -&gt; 1</p></li>
+<li><p>Finished basement area of type 1 -&gt; 1</p></li>
+<li><p>Total area of finished basement -&gt; 1</p></li>
+<li><p>First floor area -&gt; 1</p></li>
+<li><p>Above ground living area -&gt; 0</p></li>
+<li><p>Full bathrooms above grade -&gt; 1</p></li>
+<li><p>Kitchens above grade -&gt; 1</p></li>
+<li><p>Total rooms above grade -&gt; 1</p></li>
+<li><p>Number of fireplaces -&gt; 1</p></li>
+<li><p>Year of construction of the garage -&gt; 1</p></li>
+<li><p>Size of garage in car capacity -&gt; 1</p></li>
+<li><p>Total area of garage -&gt; 1</p></li>
 </ul>
 <p>Setting the lambda and prior distribution values:</p>
 <pre class="r"><code>lambda    &lt;- 1e-5
 reg.prior &lt;- list(
     B = list(
-      mu = c(0,ifelse(lapply(x_train, mean) &gt; 0, 1,-1)),
+      mu = c((1),1,1,-1,1,1,1,1,0,1,1,1,1,1,1,1),
       V  = diag(rep(1/lambda,length(x_train) + 1)))
 )</code></pre>
 <p>Next, we train the model and make the predictions:</p>
@@ -1863,27 +1904,27 @@ bayesian_mprior_preds   &lt;- predict(base_bayes_model_mprior, test)</code></pre
 ##  Location effects: SalePrice ~ OverallQual + OverallCond + YearRemodAdd + MasVnrArea + BsmtFinSF1 + TotalBsmtSF + X1stFlrSF + GrLivArea + FullBath + KitchenAbvGr + TotRmsAbvGrd + Fireplaces + GarageYrBlt + GarageCars + GarageArea 
 ## 
 ##              post.mean l-95% CI u-95% CI eff.samp  pMCMC    
-## (Intercept)    -11.702 -641.318  566.306   1206.7  0.958    
-## OverallQual   1099.182  465.283 1664.906   1000.0 &lt;0.001 ***
-## OverallCond    106.073 -400.821  711.551   1000.0  0.726    
-## YearRemodAdd  -870.233 -994.662 -745.760   1000.0 &lt;0.001 ***
+## (Intercept)    -10.702 -640.317  567.307   1206.7  0.958    
+## OverallQual   1099.146  465.249 1664.870   1000.0 &lt;0.001 ***
+## OverallCond    106.059 -400.835  711.538   1000.0  0.726    
+## YearRemodAdd  -870.314 -994.745 -745.838   1000.0 &lt;0.001 ***
 ## MasVnrArea      56.633   41.037   72.247   1000.0 &lt;0.001 ***
-## BsmtFinSF1      14.364    8.953   21.200   1000.0 &lt;0.001 ***
-## TotalBsmtSF     27.554   19.017   37.367   1000.0 &lt;0.001 ***
-## X1stFlrSF       -1.047  -12.832    9.788   1000.0  0.854    
+## BsmtFinSF1      14.365    8.953   21.200   1000.0 &lt;0.001 ***
+## TotalBsmtSF     27.553   19.016   37.366   1000.0 &lt;0.001 ***
+## X1stFlrSF       -1.046  -12.831    9.788   1000.0  0.854    
 ## GrLivArea       57.540   50.841   63.444   1000.0 &lt;0.001 ***
-## FullBath       100.810 -456.496  723.676    898.5  0.764    
-## KitchenAbvGr  -148.436 -754.434  450.112   1000.0  0.628    
-## TotRmsAbvGrd    98.240 -401.368  757.093   1000.0  0.800    
-## Fireplaces     312.457 -332.577  849.985   1000.0  0.312    
-## GarageYrBlt     15.903   10.124   21.729   1000.0 &lt;0.001 ***
-## GarageCars     188.290 -414.666  869.302    870.3  0.562    
-## GarageArea      69.154   54.949   82.981    995.1 &lt;0.001 ***
+## FullBath       100.797 -456.509  723.663    898.5  0.764    
+## KitchenAbvGr  -148.433 -754.430  450.116   1000.0  0.628    
+## TotRmsAbvGrd    98.251 -401.357  757.103   1000.0  0.800    
+## Fireplaces     312.460 -332.575  849.988   1000.0  0.312    
+## GarageYrBlt     15.904   10.125   21.731   1000.0 &lt;0.001 ***
+## GarageCars     188.283 -414.672  869.296    870.3  0.562    
+## GarageArea      69.152   54.947   82.979    995.1 &lt;0.001 ***
 ## ---
 ## Signif. codes:  0 &#39;***&#39; 0.001 &#39;**&#39; 0.01 &#39;*&#39; 0.05 &#39;.&#39; 0.1 &#39; &#39; 1</code></pre>
 <p>Finally, let’s compute the RMSE for the model:</p>
 <pre class="r"><code>rmse(bayesian_mprior_preds, y_test)</code></pre>
-<pre><code>## [1] 2233.114</code></pre>
+<pre><code>## [1] 2233.119</code></pre>
 <p>It is worse than for the model with uninformative prior distibution.
 Probably, the a priori distribution that we have provided is not good
 enough and it is necessary to be an expert in the field in which you are
@@ -1991,7 +2032,7 @@ different Bayesian models generated:</p>
 
 rmse_bayesian</code></pre>
 <pre><code>##       base   blasso   mprior
-## 1 2100.984 2154.931 2233.114</code></pre>
+## 1 2100.984 2154.931 2233.119</code></pre>
 <p>The best results have been achieved with the base model, being
 somewhat worse the model generated with BLASSO and the model manually
 selecting the a priori distribution.</p>
@@ -2012,7 +2053,7 @@ all the models we have generated throughout this assignment.</p>
 
 rmses</code></pre>
 <pre><code>##   freq_full freq_lasso freq_step bayes_base bayes_blasso bayes_mprior
-## 1  2099.026    2062.35  2097.832   2100.984     2154.931     2233.114</code></pre>
+## 1  2099.026    2062.35  2097.832   2100.984     2154.931     2233.119</code></pre>
 <p>The table shows that the model with which we have obtained the best
 results is the frequentist lasso model. We also believe it is important
 to highlight that the worst frequentist model (full) gave better results
