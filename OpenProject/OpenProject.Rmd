@@ -9,16 +9,19 @@ output: html_document
 knitr::opts_chunk$set(echo = TRUE)
 ```
 
+Load packages
 
-```{r}
+```{r, message=FALSE, warning=FALSE}
 i.p <- (\(x) is.null(install.packages(x, repos = "https://cran.rediris.es")))
 require(tidyverse)  || i.p("tidyverse")  && require(tidyverse)
 require(lubridate)  || i.p("lubridate")  && require(lubridate)
 require(fpp3)       || i.p("fpp3")       && require(fpp3)
 require(fable)      || i.p("fable")      && require(fable)
 require(fabletools) || i.p("fabletools") && require(fabletools)
+require(patchwork)  || i.p("patchwork")  && require(patchwork)
 ```
 
+Load data and proper format
 
 ```{r}
 co2  <- read.table("https://www.esrl.noaa.gov/gmd/webdata/ccgg/trends/co2/co2_mm_mlo.txt")
@@ -27,20 +30,238 @@ temp <- read.csv("https://data.giss.nasa.gov/gistemp/tabledata_v4/GLB.Ts+dSST.cs
 
 co2     <- ts(co2[,5], start = c(1958, 3), frequency = 12)
 co2_ts  <- co2 %>% as_tsibble()
-temp    <- ts(as.vector(t(temp[,2:13])), start = c(1880, 1), frequency = 12) %>% drop_na()
-temp_ts <- temp %>% as_tsibble()
+temp_ts <- ts(as.vector(t(temp[,2:13])), start = c(1880, 1), frequency = 12) %>% 
+    as_tsibble() %>% drop_na()
+temp    <- temp_ts %>% as.ts()
 ```
 
+Visualize the time series
 
 ```{r}
 temp_ts %>% 
     filter(year(index) > 1958) %>% 
     autoplot(color = "#8B008B") +
         labs(title = "Mean monthly anomaly temperature [°C]",
-             x = "", y = "")
+             x = "", y = "") + theme_minimal()
+co2_ts %>% 
+    autoplot(color = "#43CD80") +
+        labs(title = "Mean monthly CO concentration [mg/m³]",
+             x = "", y = "") + theme_minimal()
 ```
 
+Try linear model to see if relation
 
+```{r}
+# Merge the data
+data_ts     <- tsibble(temp_ts %>% filter((year(index) > 1958) & (year(index) < 2023)))
+co2_vec     <- co2_ts %>% filter((year(index) > 1958) & (year(index) < 2023))
+data_ts$co2 <- co2_vec$value
+colnames(data_ts)[2] <- "temp"
+```
+
+```{r}
+co_temp_lm <- lm(temp ~ co2, data_ts)
+summary(co_temp_lm)
+```
+
+Manual ARIMA for CO2
+
+```{r}
+# Only normal differentiation
+p1 <- data_ts %>% 
+    mutate(dco2 = difference(co2)) %>%
+    autoplot(dco2, color = "#43CD80") + theme_minimal() +
+        labs(title = "Differenced CO concentrations", x = "", y = "")
+p2 <- data_ts %>% 
+    mutate(dco2 = difference(co2)) %>%
+    ACF(dco2) %>% 
+    autoplot() + theme_minimal() +
+        labs(x = "Lags [months]", y = "ACF")
+p3 <- data_ts %>% 
+    mutate(dco2 = difference(co2)) %>%
+    PACF(dco2) %>% 
+    autoplot() + theme_minimal() +
+        labs(x = "Lags [months]", y = "ACF")
+p1 / (p2 | p3)
+
+# Seasonal + normal differentiation
+p1 <- data_ts %>% 
+    mutate(dco2 = difference(difference(co2, 12))) %>%
+    autoplot(dco2, color = "#43CD80") + theme_minimal() +
+        labs(title = "Diff Diff(12) CO concentrations", x = "", y = "")
+p2 <- data_ts %>% 
+    mutate(dco2 = difference(difference(co2, 12))) %>%
+    ACF(dco2) %>% 
+    autoplot() + theme_minimal() +
+        labs(x = "Lags [months]", y = "ACF")
+p3 <- data_ts %>% 
+    mutate(dco2 = difference(difference(co2, 12))) %>%
+    PACF(dco2) %>% 
+    autoplot() + theme_minimal() +
+        labs(x = "Lags [months]", y = "ACF")
+p1 / (p2 | p3)
+```
+
+Try ARIMA(0,1,1) and ARIMA(0,1,1)(0,1,2)[12] and auto ARIMA.
+
+```{r, warning=FALSE}
+# Train-test
+train_ts   <- data_ts %>% filter(year(index) <= 2017)
+test_ts    <- data_ts %>% filter(year(index) >  2017)
+
+# Train the models
+models_co2 <- train_ts %>% 
+    model(
+        manual = ARIMA(co2 ~ 1 + pdq(0, 1, 1) + PDQ(0, 0, 0)),
+        season = ARIMA(co2 ~ 1 + pdq(0, 1, 1) + PDQ(0, 1, 2, period = 12)),
+        auto   = ARIMA(co2))
+forecast_co2 <- models_co2 %>% forecast(test_ts)
+
+# Test them
+forecast_co2 %>% accuracy(data_ts)
+
+# Visualize them
+train_ts %>% 
+    filter(year(index) > 2012) %>% 
+    autoplot(co2) +
+    autolayer(forecast_co2) +
+    autolayer(test_ts, co2) +
+        labs(title = "Test forecast on CO concentration [mg/m³]",
+             x = "", y = "") + theme_minimal()
+```
+
+ARIMA(0,1,1)(0,1,2)[12] the best
+
+Future forecast (5 years)
+
+```{r, warning=FALSE}
+co2_forecast <- data_ts %>% 
+    model(ARIMA(co2 ~ 1 + pdq(0, 1, 1) + PDQ(0, 1, 2, period = 12))) %>% 
+    forecast(h = "5 years")
+
+data_ts %>% 
+    filter(year(index) > 2012) %>% 
+    autoplot(co2) +
+    autolayer(co2_forecast, color = "#43CD80") +
+        labs(title = "5 year forecast on CO concentration [mg/m³]",
+             x = "", y = "") + theme_minimal()
+```
+
+Now same with temperature
+
+```{r}
+# Only normal differentiation
+p1 <- data_ts %>% 
+    mutate(dtemp = difference(temp)) %>%
+    autoplot(dtemp, color = "#8B008B") + theme_minimal() +
+        labs(title = "Differenced Temperature anomaly", x = "", y = "")
+p2 <- data_ts %>% 
+    mutate(dtemp = difference(temp)) %>%
+    ACF(temp) %>% 
+    autoplot() + theme_minimal() +
+        labs(x = "Lags [months]", y = "ACF")
+p3 <- data_ts %>% 
+    mutate(dtemp = difference(temp)) %>%
+    PACF(dtemp) %>% 
+    autoplot() + theme_minimal() +
+        labs(x = "Lags [months]", y = "ACF")
+p1 / (p2 | p3)
+
+# Seasonal + normal differentiation
+p1 <- data_ts %>% 
+    mutate(dtemp = difference(difference(temp, 12))) %>%
+    autoplot(dtemp, color = "#8B008B") + theme_minimal() +
+        labs(title = "Diff Diff(12) Temperature anomaly", x = "", y = "")
+p2 <- data_ts %>% 
+    mutate(dtemp = difference(difference(temp, 12))) %>%
+    ACF(dtemp) %>% 
+    autoplot() + theme_minimal() +
+        labs(x = "Lags [months]", y = "ACF")
+p3 <- data_ts %>% 
+    mutate(dtemp = difference(difference(temp, 12))) %>%
+    PACF(dtemp) %>% 
+    autoplot() + theme_minimal() +
+        labs(x = "Lags [months]", y = "ACF")
+p1 / (p2 | p3)
+```
+
+ARIMA(0,1,3) and ARIMA(0,1,1)(0,1,1)[12] and auto ARIMA
+
+```{r, warning=FALSE}
+# Train the models
+models_temp <- train_ts %>% 
+    model(
+        manual = ARIMA(temp ~ 1 + pdq(0, 1, 3) + PDQ(0, 0, 0)),
+        season = ARIMA(temp ~ 1 + pdq(0, 1, 1) + PDQ(0, 1, 1, period = 12)),
+        auto   = ARIMA(temp))
+forecast_temp <- models_temp %>% forecast(test_ts)
+
+# Test them
+forecast_temp %>% accuracy(data_ts)
+
+# Visualize them
+train_ts %>% 
+    filter(year(index) > 2012) %>% 
+    autoplot(temp) +
+    autolayer(forecast_temp) +
+    autolayer(test_ts, temp) +
+        labs(title = "Test forecast on Temperature anomaly [°C]",
+             x = "", y = "") + theme_minimal()
+```
+
+By a little the best is ARIMA(0,1,3)
+
+Future forecast (5 years)
+
+```{r}
+temp_forecast <- data_ts %>% 
+    model(ARIMA(temp ~ 1 + pdq(0, 1, 3) + PDQ(0, 0, 0))) %>% 
+    forecast(h = "5 years")
+
+data_ts %>% 
+    filter(year(index) > 2012) %>% 
+    autoplot(temp) +
+    autolayer(temp_forecast, color = "#8B008B") +
+        labs(title = "5 year forecast on Temperature anomaly [°C]",
+             x = "", y = "") + theme_minimal()
+```
+
+Now multivariate
+We add a year ago to account for possible retarded effect
+
+```{r}
+# Temp ~ time + co2 + co2 a year ago
+temp_fit <- data_ts %>% 
+    model(ARIMA(temp ~ 1 + pdq(0, 1, 3) + PDQ(0, 0, 0) + co2 + lag(co2, 12))) 
+
+# Forecast 5 years
+temp_fit_forecast <- temp_fit %>% 
+    forecast(new_data(data_ts, n = 12*5) %>% mutate(co2 = co2_forecast$.mean))
+
+# Plot the forecast
+data_ts %>% 
+    filter(year(index) > 2012) %>% 
+    autoplot(temp) +
+    autolayer(temp_fit_forecast, color = "#8B008B") +
+        labs(title = "5 year forecast on Temperature anomaly [°C]",
+             x = "", y = "") + theme_minimal()
+```
+
+Comparison with the model without CO:
+GREEN: with CO
+PURPLE: without CO
+
+```{r}
+data_ts %>% 
+    filter(year(index) > 2012) %>% 
+    autoplot(temp) +
+    autolayer(temp_fit_forecast, color = "#43CD80", level = NULL) +
+    autolayer(temp_forecast, color = "#8B008B", level = NULL) +
+        labs(title = "5 year forecast on Temperature anomaly [°C]",
+             x = "", y = "") + theme_minimal()
+```
+
+A bit higher
 
 #### De aqui para abajo NACHO
 
