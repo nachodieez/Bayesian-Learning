@@ -2,7 +2,12 @@
 title: "OpenProject"
 author: "yo no"
 date: "`r Sys.Date()`"
-output: html_document
+output:
+    html_document:
+        toc: true
+        toc_float: yes
+        theme: cosmo
+        code_folding: "hide"        
 ---
 
 ```{r setup, include=FALSE}
@@ -11,7 +16,7 @@ knitr::opts_chunk$set(echo = TRUE, message = FALSE, warning = FALSE)
 
 Load packages
 
-```{r, message=FALSE, warning=FALSE}
+```{r, results=FALSE}
 i.p <- (\(x) is.null(install.packages(x, repos = "https://cran.rediris.es")))
 require(tidyverse)  || i.p("tidyverse")  && require(tidyverse)
 require(lubridate)  || i.p("lubridate")  && require(lubridate)
@@ -19,6 +24,39 @@ require(fpp3)       || i.p("fpp3")       && require(fpp3)
 require(fable)      || i.p("fable")      && require(fable)
 require(fabletools) || i.p("fabletools") && require(fabletools)
 require(patchwork)  || i.p("patchwork")  && require(patchwork)
+
+# Plot theme
+theme_set(theme_minimal())
+
+# Plot functions
+pretty_ts  <- function(.data, .var, title, color, lag_max = NULL) {
+    norm <- sqrt(nrow(.data))
+    p1   <- .data %>%
+        autoplot(.data[[.var]], color = color) +
+            labs(title = title, x = "", y = "")
+    p2   <- .data %>%
+        ACF(.data[[.var]], lag_max = lag_max) %>% 
+        ggplot(aes(x = lag, y = acf)) +
+            geom_hline(aes(yintercept = 0)) +
+            geom_segment(mapping = aes(xend = lag, yend = 0), color = color) +
+            geom_hline(aes(yintercept =  1.96/norm),
+                       linetype = 2, color = "#838B8B") +
+            geom_hline(aes(yintercept = -1.96/norm),
+                       linetype = 2, color = "#838B8B") +
+            labs(title = "", x = "Lags [months]", y = "ACF")
+    p3 <- .data %>%
+        PACF(.data[[.var]], lag_max = lag_max) %>% 
+        ggplot(aes(x = lag, y = pacf)) +
+            geom_hline(aes(yintercept = 0)) +
+            geom_segment(mapping = aes(xend = lag, yend = 0), color = color) +
+            geom_hline(aes(yintercept =  1.96/norm),
+                       linetype = 2, color = "#838B8B") +
+            geom_hline(aes(yintercept = -1.96/norm),
+                       linetype = 2, color = "#838B8B") +
+            labs(title = "", x = "Lags [months]", y = "PACF")
+    
+    print(p1 / (p2 | p3))
+}
 ```
 
 # Data loading 
@@ -62,44 +100,21 @@ colnames(data_ts)[2] <- "temp"
 co_temp_lm <- lm(temp ~ co2, data_ts)
 summary(co_temp_lm)
 ```
+
 We obtain a reasonable model, with a very high $R^2$ and with a significant coefficient for the CO2. 
 
 Now, we can try to model the CO2 series with an ARIMA model.
 
 ```{r}
 # Only normal differentiation
-p1 <- data_ts %>% 
+data_ts %>% 
     mutate(dco2 = difference(co2)) %>%
-    autoplot(dco2, color = "#43CD80") + theme_minimal() +
-        labs(title = "Differenced CO concentrations", x = "", y = "")
-p2 <- data_ts %>% 
-    mutate(dco2 = difference(co2)) %>%
-    ACF(dco2) %>% 
-    autoplot() + theme_minimal() +
-        labs(x = "Lags [months]", y = "ACF")
-p3 <- data_ts %>% 
-    mutate(dco2 = difference(co2)) %>%
-    PACF(dco2) %>% 
-    autoplot() + theme_minimal() +
-        labs(x = "Lags [months]", y = "PACF")
-p1 / (p2 | p3)
+    pretty_ts("dco2", title = "Differenced CO concentrations", color = "#43CD80")
 
 # Seasonal + normal differentiation
-p1 <- data_ts %>% 
+data_ts %>% 
     mutate(dco2 = difference(difference(co2, 12))) %>%
-    autoplot(dco2, color = "#43CD80") + theme_minimal() +
-        labs(title = "Diff Diff(12) CO concentrations", x = "", y = "")
-p2 <- data_ts %>% 
-    mutate(dco2 = difference(difference(co2, 12))) %>%
-    ACF(dco2) %>% 
-    autoplot() + theme_minimal() +
-        labs(x = "Lags [months]", y = "ACF")
-p3 <- data_ts %>% 
-    mutate(dco2 = difference(difference(co2, 12))) %>%
-    PACF(dco2) %>% 
-    autoplot() + theme_minimal() +
-        labs(x = "Lags [months]", y = "PACF")
-p1 / (p2 | p3)
+    pretty_ts("dco2", title = "Diff Diff(12) CO concentrations", color = "#43CD80")
 ```
 
 We can see in the ACF and the PACF of the differentiated series (which looks stationary) there is a significant spike at the first lag, followed by a rapid decrease towards zero. This suggests that the ARIMA(0,1,1) model. 
@@ -157,45 +172,23 @@ data_ts %>%
         labs(title = "5 year forecast on CO concentration [mg/m³]",
              x = "", y = "") + theme_minimal()
 ```
+
 The results seem entirely reasonable, as do the confidence intervals, which are not too wide. 
 
 Now, we will perform the same steps for the temperature:
 
 ```{r}
 # Only normal differentiation
-p1 <- data_ts %>% 
+data_ts %>% 
     mutate(dtemp = difference(temp)) %>%
-    autoplot(dtemp, color = "#8B008B") + theme_minimal() +
-        labs(title = "Differenced Temperature anomaly", x = "", y = "")
-p2 <- data_ts %>% 
-    mutate(dtemp = difference(temp)) %>%
-    ACF(dtemp) %>% 
-    autoplot() + theme_minimal() +
-        labs(x = "Lags [months]", y = "ACF")
-p3 <- data_ts %>% 
-    mutate(dtemp = difference(temp)) %>%
-    PACF(dtemp) %>% 
-    autoplot() + theme_minimal() +
-        labs(x = "Lags [months]", y = "PACF")
-p1 / (p2 | p3)
+    pretty_ts("dtemp", title = "Differenced Temperature anomaly", color = "#8B008B")
 
 # Seasonal + normal differentiation
-p1 <- data_ts %>% 
+data_ts %>% 
     mutate(dtemp = difference(difference(temp, 12))) %>%
-    autoplot(dtemp, color = "#8B008B") + theme_minimal() +
-        labs(title = "Diff Diff(12) Temperature anomaly", x = "", y = "")
-p2 <- data_ts %>% 
-    mutate(dtemp = difference(difference(temp, 12))) %>%
-    ACF(dtemp) %>% 
-    autoplot() + theme_minimal() +
-        labs(x = "Lags [months]", y = "ACF")
-p3 <- data_ts %>% 
-    mutate(dtemp = difference(difference(temp, 12))) %>%
-    PACF(dtemp) %>% 
-    autoplot() + theme_minimal() +
-        labs(x = "Lags [months]", y = "PACF")
-p1 / (p2 | p3)
+    pretty_ts("dtemp", title = "Diff Diff(12) Temperature anomaly", color = "#8B008B")
 ```
+
 In the first plot, the differentiated series looks stationary, there is a sinusoidal decay in the ACF and spikes at lag 1 and lag 3 in the PACF. This suggests an ARIMA(3,1,0) model, or  
 
 Regarding the second plot, it also looks stationary. In the ACF there is a spike at lag 1 and 12, with the exact same pattern in the PACF. This suggests an ARIMA(0,1,1)(0,1,1)[12] model.
@@ -270,7 +263,7 @@ data_ts %>%
              x = "", y = "") + theme_minimal()
 ```
 
-Let's visually compare the two models: \textcolor{#43CD80}{the one with CO} and \textcolor{#8B008B}{the one without CO}
+Let's visually compare the two models: <font style="color:#43CD80">the one with CO</font> and <font style="color:#8B008B;">the one without CO</font>.
 
 ```{r}
 data_ts %>% 
@@ -290,20 +283,20 @@ Once we include the CO, the predictions are a bit smaller than without it. Howev
 Wild -99.99
 
 
-```{r}
-co2_ts <- ts(co2_data[,5], start=c(1958,3), frequency=12) %>% 
-  as_tsibble()
-```
+<!-- ```{r} -->
+<!-- co2_ts <- ts(co2_data[,5], start=c(1958,3), frequency=12) %>% -->
+<!--   as_tsibble() -->
+<!-- ``` -->
 
-```{r}
-temp_data <- temp_data[,c(1:13)]  
-```
+<!-- ```{r} -->
+<!-- temp_data <- temp_data[,c(1:13)] -->
+<!-- ``` -->
 
-```{r}
-temp_ts <- ts(as.vector(t(temp_data[,2:13])),
-              frequency=12) %>% 
-  as_tsibble() %>%
-  drop_na()
-```
+<!-- ```{r} -->
+<!-- temp_ts <- ts(as.vector(t(temp_data[,2:13])), -->
+<!--               frequency=12) %>% -->
+<!--   as_tsibble() %>% -->
+<!--   drop_na() -->
+<!-- ``` -->
 
 
