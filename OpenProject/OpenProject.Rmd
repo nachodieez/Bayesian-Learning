@@ -6,7 +6,7 @@ output: html_document
 ---
 
 ```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE)
+knitr::opts_chunk$set(echo = TRUE, message = FALSE, warning = FALSE)
 ```
 
 Load packages
@@ -21,7 +21,9 @@ require(fabletools) || i.p("fabletools") && require(fabletools)
 require(patchwork)  || i.p("patchwork")  && require(patchwork)
 ```
 
-Load data and proper format
+# Data loading 
+
+We begin by loading our data and converting it to the adequate format. We have our data both in `ts` and `tsibble` formats. 
 
 ```{r}
 co2  <- read.table("https://www.esrl.noaa.gov/gmd/webdata/ccgg/trends/co2/co2_mm_mlo.txt")
@@ -35,7 +37,7 @@ temp_ts <- ts(as.vector(t(temp[,2:13])), start = c(1880, 1), frequency = 12) %>%
 temp    <- temp_ts %>% as.ts()
 ```
 
-Visualize the time series
+Once we have loaded the data, let's visualize the last 65 years:
 
 ```{r}
 temp_ts %>% 
@@ -49,7 +51,7 @@ co2_ts %>%
              x = "", y = "") + theme_minimal()
 ```
 
-Try linear model to see if relation
+We can see in both plots that there is a clear positive trend. We can also wonder if there is a linear relationship between the variables:
 
 ```{r}
 # Merge the data
@@ -57,14 +59,12 @@ data_ts     <- tsibble(temp_ts %>% filter((year(index) > 1958) & (year(index) < 
 co2_vec     <- co2_ts %>% filter((year(index) > 1958) & (year(index) < 2023))
 data_ts$co2 <- co2_vec$value
 colnames(data_ts)[2] <- "temp"
-```
-
-```{r}
 co_temp_lm <- lm(temp ~ co2, data_ts)
 summary(co_temp_lm)
 ```
+We obtain a reasonable model, with a very high $R^2$ and with a significant coefficient for the CO2. 
 
-Manual ARIMA for CO2
+Now, we can try to model the CO2 series with an ARIMA model.
 
 ```{r}
 # Only normal differentiation
@@ -81,7 +81,7 @@ p3 <- data_ts %>%
     mutate(dco2 = difference(co2)) %>%
     PACF(dco2) %>% 
     autoplot() + theme_minimal() +
-        labs(x = "Lags [months]", y = "ACF")
+        labs(x = "Lags [months]", y = "PACF")
 p1 / (p2 | p3)
 
 # Seasonal + normal differentiation
@@ -98,11 +98,15 @@ p3 <- data_ts %>%
     mutate(dco2 = difference(difference(co2, 12))) %>%
     PACF(dco2) %>% 
     autoplot() + theme_minimal() +
-        labs(x = "Lags [months]", y = "ACF")
+        labs(x = "Lags [months]", y = "PACF")
 p1 / (p2 | p3)
 ```
 
-Try ARIMA(0,1,1) and ARIMA(0,1,1)(0,1,2)[12] and auto ARIMA.
+We can see in the ACF and the PACF of the differentiated series (which looks stationary) there is a significant spike at the first lag, followed by a rapid decrease towards zero. This suggests that the ARIMA(0,1,1) model. 
+
+However, we would also like to explore a seasonal ARIMA. If we take a look into the differentiated series after the differentiation of order 12 (as the data is yearly), we firstly see that it look stationary, and we can see a spike in the lag 12 of the ACF, and spikes at lags 12 and 24 followed by exponential decay in the PACF. Thus, this suggest an ARIMA(0,1,1)(0,1,1)[12] or ARIMA(0,1,1)(0,1,1)[12]. 
+
+We will compare the models, and the one that auto ARIMA will select, using a train and test partition.
 
 ```{r, warning=FALSE}
 # Train-test
@@ -113,8 +117,9 @@ test_ts    <- data_ts %>% filter(year(index) >  2017)
 models_co2 <- train_ts %>% 
     model(
         manual = ARIMA(co2 ~ 1 + pdq(0, 1, 1) + PDQ(0, 0, 0)),
-        season = ARIMA(co2 ~ 1 + pdq(0, 1, 1) + PDQ(0, 1, 2, period = 12)),
-        auto   = ARIMA(co2))
+        season011 = ARIMA(co2 ~ 1 + pdq(0, 1, 1) + PDQ(0, 1, 1, period = 12)),
+        auto   = ARIMA(co2),
+        season012 = ARIMA(co2 ~ 1 + pdq(0, 1, 1) + PDQ(0, 1, 2)))
 forecast_co2 <- models_co2 %>% forecast(test_ts)
 
 # Test them
@@ -130,9 +135,15 @@ train_ts %>%
              x = "", y = "") + theme_minimal()
 ```
 
-ARIMA(0,1,1)(0,1,2)[12] the best
+ARIMA(0,1,1)(0,1,2)[12] is the best model in all metrics. Looking at the predictions for the test set, we see that all the models except the not seasonal one have very similar forecasts.
 
-Future forecast (5 years)
+For clarification, the model selected by auto ARIMA is:
+
+```{r}
+models_co2$auto
+```
+
+Plotting the forecast of the following five years:
 
 ```{r, warning=FALSE}
 co2_forecast <- data_ts %>% 
@@ -146,8 +157,9 @@ data_ts %>%
         labs(title = "5 year forecast on CO concentration [mg/m³]",
              x = "", y = "") + theme_minimal()
 ```
+The results seem entirely reasonable, as do the confidence intervals, which are not too wide. 
 
-Now same with temperature
+Now, we will perform the same steps for the temperature:
 
 ```{r}
 # Only normal differentiation
@@ -157,14 +169,14 @@ p1 <- data_ts %>%
         labs(title = "Differenced Temperature anomaly", x = "", y = "")
 p2 <- data_ts %>% 
     mutate(dtemp = difference(temp)) %>%
-    ACF(temp) %>% 
+    ACF(dtemp) %>% 
     autoplot() + theme_minimal() +
         labs(x = "Lags [months]", y = "ACF")
 p3 <- data_ts %>% 
     mutate(dtemp = difference(temp)) %>%
     PACF(dtemp) %>% 
     autoplot() + theme_minimal() +
-        labs(x = "Lags [months]", y = "ACF")
+        labs(x = "Lags [months]", y = "PACF")
 p1 / (p2 | p3)
 
 # Seasonal + normal differentiation
@@ -181,17 +193,21 @@ p3 <- data_ts %>%
     mutate(dtemp = difference(difference(temp, 12))) %>%
     PACF(dtemp) %>% 
     autoplot() + theme_minimal() +
-        labs(x = "Lags [months]", y = "ACF")
+        labs(x = "Lags [months]", y = "PACF")
 p1 / (p2 | p3)
 ```
+In the first plot, the differentiated series looks stationary, there is a sinusoidal decay in the ACF and spikes at lag 1 and lag 3 in the PACF. This suggests an ARIMA(3,1,0) model, or  
 
-ARIMA(0,1,3) and ARIMA(0,1,1)(0,1,1)[12] and auto ARIMA
+Regarding the second plot, it also looks stationary. In the ACF there is a spike at lag 1 and 12, with the exact same pattern in the PACF. This suggests an ARIMA(0,1,1)(0,1,1)[12] model.
+
+Comparing the models, and the one that auto ARIMA selects:
 
 ```{r, warning=FALSE}
 # Train the models
 models_temp <- train_ts %>% 
     model(
-        manual = ARIMA(temp ~ 1 + pdq(0, 1, 3) + PDQ(0, 0, 0)),
+        arima013 = ARIMA(temp ~ 1 + pdq(0, 1, 3) + PDQ(0, 0, 0)),
+        arima310 = ARIMA(temp ~ 1 + pdq(3, 1, 0) + PDQ(0, 0, 0)),
         season = ARIMA(temp ~ 1 + pdq(0, 1, 1) + PDQ(0, 1, 1, period = 12)),
         auto   = ARIMA(temp))
 forecast_temp <- models_temp %>% forecast(test_ts)
@@ -209,9 +225,15 @@ train_ts %>%
              x = "", y = "") + theme_minimal()
 ```
 
-By a little the best is ARIMA(0,1,3)
+By a little the best is ARIMA(3,1,0) with no seasonal component. 
 
-Future forecast (5 years)
+The selected model by auto ARIMA is:
+
+```{r}
+models_temp$auto
+```
+
+Looking at the forecast of the following five years of this model:
 
 ```{r}
 temp_forecast <- data_ts %>% 
@@ -226,13 +248,14 @@ data_ts %>%
              x = "", y = "") + theme_minimal()
 ```
 
-Now multivariate
-We add a year ago to account for possible retarded effect
+We see that the forecast looks very linear with a positive slope. The confidence intervals, however, are very wide. 
+
+Now that we have covered the univariate case, let's try modelling them jointly. We add a year ago to account for possible retarded effect.
 
 ```{r}
 # Temp ~ time + co2 + co2 a year ago
 temp_fit <- data_ts %>% 
-    model(ARIMA(temp ~ 1 + pdq(0, 1, 3) + PDQ(0, 0, 0) + co2 + lag(co2, 12))) 
+    model(arima_310 = ARIMA(temp ~ 1 + pdq(3, 1, 0) + PDQ(0, 0, 0) + co2 + lag(co2, 12))) 
 
 # Forecast 5 years
 temp_fit_forecast <- temp_fit %>% 
@@ -247,21 +270,19 @@ data_ts %>%
              x = "", y = "") + theme_minimal()
 ```
 
-Comparison with the model without CO:
-GREEN: with CO
-PURPLE: without CO
+Let's visually compare the two models: \textcolor{#43CD80}{the one with CO} and \textcolor{#8B008B}{the one without CO}
 
 ```{r}
 data_ts %>% 
     filter(year(index) > 2012) %>% 
     autoplot(temp) +
-    autolayer(temp_fit_forecast, color = "#43CD80", level = NULL) +
-    autolayer(temp_forecast, color = "#8B008B", level = NULL) +
+    autolayer(temp_fit_forecast, color = "#43CD80", level = NULL, lwd = 1) +
+    autolayer(temp_forecast, color = "#8B008B", level = NULL, lwd = 1) +
         labs(title = "5 year forecast on Temperature anomaly [°C]",
              x = "", y = "") + theme_minimal()
 ```
 
-A bit higher
+Once we include the CO, the predictions are a bit smaller than without it. However, the slope is positive in both of them.
 
 #### De aqui para abajo NACHO
 
