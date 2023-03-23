@@ -390,7 +390,7 @@ We can see that this model is able to capture the positive trend, and make predi
 
 ## SARIMA
 
-Now, we will try to Bayesian version of ARIMA. We will use a training and a test partition, and we will compare it to a naive model.
+Now, we will try the Bayesian version of ARIMA. We will use a training and a test partition, and we will compare it to a naive model.
 
 ```{r}
 library(tidymodels)
