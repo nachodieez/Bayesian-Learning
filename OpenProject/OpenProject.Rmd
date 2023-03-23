@@ -1,6 +1,6 @@
 ---
 title: "OpenProject"
-author: "yo no"
+author: "FuncioNacho"
 date: "`r Sys.Date()`"
 output:
     html_document:
@@ -14,7 +14,7 @@ output:
 knitr::opts_chunk$set(echo = TRUE, message = FALSE, warning = FALSE)
 ```
 
-Load packages
+## Package loading
 
 ```{r, results=FALSE}
 i.p <- (\(x) is.null(install.packages(x, repos = "https://cran.rediris.es")))
@@ -74,6 +74,8 @@ temp    <- temp_ts %>% as.ts()
 
 Once we have loaded the data, let's visualize the last 65 years:
 
+## Data visualization
+
 ```{r}
 temp_ts %>% 
     filter(year(index) > 1958) %>% 
@@ -100,6 +102,8 @@ summary(co_temp_lm)
 
 We obtain a reasonable model, with a very high $R^2$ and with a significant coefficient for the CO2. 
 
+## Frequentist approach
+
 Now, we can try to model the CO2 series with an ARIMA model.
 
 ```{r}
@@ -114,7 +118,6 @@ data_ts %>%
 ```
 
 We can see in the ACF and the PACF of the differentiated series (which looks stationary) there is a significant spike at the first lag, followed by a rapid decrease towards zero. This suggests that the ARIMA(0,1,1) model. 
-
 However, we would also like to explore a seasonal ARIMA. If we take a look into the differentiated series after the differentiation of order 12 (as the data is yearly), we firstly see that it look stationary, and we can see a spike in the lag 12 of the ACF, and spikes at lags 12 and 24 followed by exponential decay in the PACF. Thus, this suggest an ARIMA(0,1,1)(0,1,1)[12] or ARIMA(0,1,1)(0,1,1)[12]. 
 
 We will compare the models, and the one that auto ARIMA will select, using a train and test partition.
@@ -263,11 +266,11 @@ data_ts %>%
 
 Once we include the CO, the predictions are a bit smaller than without it. However, the slope is positive in both of them.
 
-#### De aqui para abajo NACHO
+## Bayesian approach
 
+We will now try the Bayesian approach.
 
-Wild -99.99
-```{r}
+```{r, echo = F}
 temp <- read.csv("https://data.giss.nasa.gov/gistemp/tabledata_v4/GLB.Ts+dSST.csv",
                  header = TRUE, skip = 1, sep = ",", na.strings = "***")
 temp_ts <- ts(as.vector(t(temp[,2:13])), start = c(1958, 3), frequency = 12) %>% 
@@ -275,7 +278,7 @@ temp_ts <- ts(as.vector(t(temp[,2:13])), start = c(1958, 3), frequency = 12) %>%
 temp    <- temp_ts %>% as.ts()
 ```
 
-```{r}
+```{r, echo = F}
 temp <- data_ts %>% 
   select(temp) %>% 
   as.ts(frequency = 12)
@@ -285,82 +288,84 @@ temp_ts <- temp %>%
   drop_na()
 ```
 
+### Kalman filter with filter estimates of variances
+
+The first model we are going to try is the Kalman filter with filter estimates of variances. 
 
 ```{r}
 library(dlm)
-```
 
-## Kalman filter with filter estimates of variances
-
-```{r}
 # MODEL 1: Kalman filter with filter estimates of variances.
-#
-t <- 1:nrow(temp_ts)+1959
 
-mod1  <- dlmModPoly(order=1)
+t <- 1:nrow(temp_ts) + 1959
+
+mod1  <- dlmModPoly(order = 1)
+
 # Estimate the filtered values of the state vector 
+
 filt1 <- dlmFilter(temp, mod1)
 names(filt1)
+
 #filt1$y
 #filt1$mod
 #filt1$m
 
-
-#
 # Plot time series and fit.
-#
-plot ( temp, type="p", xlab="Year", ylab="Depth",
-       main="Temperature" )
-lines ( t, filt1$m[-1] )
-#
+
+plot(temp, type="p", pch=16, xlab="Year", ylab="Depth",
+     main="Temperature", ylim = c(-2,3))
+lines(t, filt1$m[-1], col = "dodgerblue", lwd = 1.2)
+
 # Obtain confidence intervals 
-#
+
 var <- dlmSvd2var(filt1$U.C, filt1$D.C)
 sd <- sqrt(unlist(var))
 
 upper_bound <- filt1$m[-1] + 2*sd[-1]
 lower_bound <- filt1$m[-1] - 2*sd[-1]
 
-lines ( t, upper_bound, lty=3, col="red" )
-lines ( t, lower_bound, lty=3, col="red" )
-#
+lines(t, upper_bound, lty=3, col="red")
+lines(t, lower_bound, lty=3, col="red")
+
 # Estimate  predicted values of the state vectors
-#
-filt1$a
-dlmSvd2var ( filt1$U.R, filt1$D.R )
-points ( t, filt1$a, lty=2, col="green" ) # forecast
-points ( t, filt1$f, lty=2, col="magenta" ) # forecast
-#
+
+#filt1$a
+#dlmSvd2var(filt1$U.R, filt1$D.R)
+points(t, filt1$a, lty=2, col="green") # forecast
+points(t, filt1$f, lty=2, col="magenta") # forecast
+
 ```
 
+We can see that this model fails to capture the positive trend of the series. Now, we will try to change the values of V and W:
 
 ```{r}
 # Model 2: using fixed values of variances. Do V and W matter?
-#
-mod2  <- dlmModPoly ( order=1, dV=10, dW=1 )
-filt2 <- dlmFilter ( temp, mod2 )
-mod3  <- dlmModPoly ( order=1, dV=1, dW=10 )
-filt3 <- dlmFilter ( temp, mod3 )
-plot ( temp, type="p", xlab="Year", ylab="Depth",
-       main="Lake Huron" )
-lines ( t, filt1$m[-1], col="red" )
-lines ( t, filt2$m[-1], col="blue" )
-lines ( t, filt3$m[-1], col="green" )
+
+mod2  <- dlmModPoly(order=1, dV=10, dW=1)
+filt2 <- dlmFilter(temp, mod2 )
+mod3  <- dlmModPoly(order=1, dV=1, dW=10)
+filt3 <- dlmFilter(temp, mod3)
+plot(temp, type="p", xlab="Year", ylab="",
+       main="Mean month anomaly temperature" )
+lines(t, filt1$m[-1], col="red")
+lines(t, filt2$m[-1], col="blue")
+lines(t, filt3$m[-1], col="green")
 ```
 
-## Nowcasting
+All the models are very similar but suffer from the same problem as before.
+
+## BSTS
 
 ```{r}
 library(bsts) 
 ```
 
 
-
 ```{r}
 #
 # Plot data
 #
-ts.plot(temp,lwd=2,ylab='claims')
+ts.plot(temp,lwd=2,ylab='', xlab = "Time")
 #
 # Introduce different model components
 #
@@ -377,11 +382,15 @@ plot(model1, "components")
 #
 # Out of sample prediction (for 2013 along with the previous 3 years)
 # 
-pred1 <- predict(model1, horizon = 12)
-plot(pred1, plot.original = 156)
+pred1 <- predict(model1, horizon = 60)
+plot(pred1, plot.original = 240)
 ```
 
-## Bayesian sarima
+We can see that this model is able to capture the positive trend, and make predictions accordingly. However, the confidence intervals are very wide, and thus they are not very informative. 
+
+## SARIMA
+
+Now, we will try to Bayesian version of ARIMA. We will use a training and a test partition, and we will compare it to a naive model.
 
 ```{r}
 library(tidymodels)
@@ -434,7 +443,7 @@ calibration_tbl <- models_tbl %>%
 calibration_tbl %>%
     modeltime_forecast(
         new_data    = testing(splits),
-        actual_data = temps_ts2
+        actual_data = temps_ts2[-(1:1500),]
     ) %>%
     plot_modeltime_forecast(
         .legend_max_width = 25, # For mobile screens
@@ -443,4 +452,7 @@ calibration_tbl %>%
 
 ```
 
+We can see in the posterior predict plot that the model captures most of the variability in the data.
+
+Regarding the predictions, the model does exactly that. The Bayesian model is clearly better than the naive model.
 
