@@ -68,7 +68,7 @@ pretty_ts  <- function(.data, .var, title, color, lag_max = NULL) {
 }
 ```
 
-# Data loading 
+## Data loading 
 
 We begin by loading our data and converting it to the adequate format. We have our data both in `ts` and `tsibble` formats. 
 
@@ -350,7 +350,7 @@ lines(t, filt3$m[-1], col="green")
 
 All the models are very similar but suffer from the same problem as before.
 
-## BSTS
+### BSTS
 
 Next, let's check the BSTS model. First, we introduce the model components.
 
@@ -381,9 +381,9 @@ plot(pred1, plot.original = 240)
 
 We can see that this model is able to capture the positive trend, and make predictions accordingly. However, the confidence intervals are very wide, and thus they are not very informative. 
 
-## SARIMA
+### SARIMA
 
-Now, we will try to Bayesian version of ARIMA. We will use a training and a test partition, and we will compare it to a naive model.
+Now, we will try the Bayesian version of ARIMA. We will use a training and a test partition, and we will compare it to a naive model.
 
 We first need to make a function to create a dates vector:
 
