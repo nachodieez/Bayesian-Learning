@@ -1,6 +1,9 @@
 ---
-title: "OpenProject"
-author: "FuncioNacho"
+title: "Open Project"
+author: 
+  -   "José Ignacio Díez Ruiz (100487766)"
+  -   "Carlos Roldán Piñero (100484904)"
+  -   "Pablo Vidal Fernández (100483812)"
 date: "`r Sys.Date()`"
 output:
     html_document:
@@ -14,16 +17,24 @@ output:
 knitr::opts_chunk$set(echo = TRUE, message = FALSE, warning = FALSE)
 ```
 
-## Package loading
+# Package loading
 
 ```{r, results=FALSE}
 i.p <- (\(x) is.null(install.packages(x, repos = "https://cran.rediris.es")))
-require(tidyverse)  || i.p("tidyverse")  && require(tidyverse)
-require(lubridate)  || i.p("lubridate")  && require(lubridate)
-require(fpp3)       || i.p("fpp3")       && require(fpp3)
-require(fable)      || i.p("fable")      && require(fable)
-require(fabletools) || i.p("fabletools") && require(fabletools)
-require(patchwork)  || i.p("patchwork")  && require(patchwork)
+require(tidyverse)   || i.p("tidyverse")   && require(tidyverse)
+require(lubridate)   || i.p("lubridate")   && require(lubridate)
+require(fpp3)        || i.p("fpp3")        && require(fpp3)
+require(fable)       || i.p("fable")       && require(fable)
+require(fabletools)  || i.p("fabletools")  && require(fabletools)
+require(patchwork)   || i.p("patchwork")   && require(patchwork)
+require(tidymodels)  || i.p("tidymodels")  && require(tidymodels)
+require(bayesmodels) || i.p("bayesmodels") && require(bayesmodels)
+require(modeltime)   || i.p("modeltime")   && require(modeltime)
+require(timetk)      || i.p("timetk")      && require(timetk)
+require(bsts)        || i.p("bsts")        && require(bsts)
+require(dlm)         || i.p("dlm")         && require(dlm)
+
+
 # Plot theme
 theme_set(theme_minimal())
 # Plot functions
@@ -74,7 +85,7 @@ temp    <- temp_ts %>% as.ts()
 
 Once we have loaded the data, let's visualize the last 65 years:
 
-## Data visualization
+# Data visualization
 
 ```{r}
 temp_ts %>% 
@@ -102,7 +113,7 @@ summary(co_temp_lm)
 
 We obtain a reasonable model, with a very high $R^2$ and with a significant coefficient for the CO2. 
 
-## Frequentist approach
+# Frequentist approach
 
 Now, we can try to model the CO2 series with an ARIMA model.
 
@@ -128,14 +139,14 @@ train_ts   <- data_ts %>% filter(year(index) <= 2017)
 test_ts    <- data_ts %>% filter(year(index) >  2017)
 # Train the models
 models_co2 <- train_ts %>% 
-    model(
+    fabletools::model(
         manual = ARIMA(co2 ~ 1 + pdq(0, 1, 1) + PDQ(0, 0, 0)),
         season011 = ARIMA(co2 ~ 1 + pdq(0, 1, 1) + PDQ(0, 1, 1, period = 12)),
         auto   = ARIMA(co2),
         season012 = ARIMA(co2 ~ 1 + pdq(0, 1, 1) + PDQ(0, 1, 2)))
-forecast_co2 <- models_co2 %>% forecast(test_ts)
+forecast_co2 <- models_co2 %>% fabletools::forecast(test_ts)
 # Test them
-forecast_co2 %>% accuracy(data_ts)
+forecast_co2 %>% fabletools::accuracy(data_ts)
 # Visualize them
 train_ts %>% 
     filter(year(index) > 2012) %>% 
@@ -158,8 +169,8 @@ Plotting the forecast of the following five years:
 
 ```{r, warning=FALSE}
 co2_forecast <- data_ts %>% 
-    model(ARIMA(co2 ~ 1 + pdq(0, 1, 1) + PDQ(0, 1, 2, period = 12))) %>% 
-    forecast(h = "5 years")
+    fabletools::model(ARIMA(co2 ~ 1 + pdq(0, 1, 1) + PDQ(0, 1, 2, period = 12))) %>% 
+    fabletools::forecast(h = "5 years")
 data_ts %>% 
     filter(year(index) > 2012) %>% 
     autoplot(co2) +
@@ -192,14 +203,14 @@ Comparing the models, and the one that auto ARIMA selects:
 ```{r, warning=FALSE}
 # Train the models
 models_temp <- train_ts %>% 
-    model(
+    fabletools::model(
         arima013 = ARIMA(temp ~ 1 + pdq(0, 1, 3) + PDQ(0, 0, 0)),
         arima310 = ARIMA(temp ~ 1 + pdq(3, 1, 0) + PDQ(0, 0, 0)),
         season = ARIMA(temp ~ 1 + pdq(0, 1, 1) + PDQ(0, 1, 1, period = 12)),
         auto   = ARIMA(temp))
-forecast_temp <- models_temp %>% forecast(test_ts)
+forecast_temp <- models_temp %>% fabletools::forecast(test_ts)
 # Test them
-forecast_temp %>% accuracy(data_ts)
+forecast_temp %>% fabletools::accuracy(data_ts)
 # Visualize them
 train_ts %>% 
     filter(year(index) > 2012) %>% 
@@ -222,8 +233,8 @@ Looking at the forecast of the following five years of this model:
 
 ```{r}
 temp_forecast <- data_ts %>% 
-    model(ARIMA(temp ~ 1 + pdq(0, 1, 3) + PDQ(0, 0, 0))) %>% 
-    forecast(h = "5 years")
+    fabletools::model(ARIMA(temp ~ 1 + pdq(0, 1, 3) + PDQ(0, 0, 0))) %>% 
+    fabletools::forecast(h = "5 years")
 data_ts %>% 
     filter(year(index) > 2012) %>% 
     autoplot(temp) +
@@ -239,10 +250,10 @@ Now that we have covered the univariate case, let's try modelling them jointly. 
 ```{r}
 # Temp ~ time + co2 + co2 a year ago
 temp_fit <- data_ts %>% 
-    model(arima_310 = ARIMA(temp ~ 1 + pdq(3, 1, 0) + PDQ(0, 0, 0) + co2 + lag(co2, 12))) 
+    fabletools::model(arima_310 = ARIMA(temp ~ 1 + pdq(3, 1, 0) + PDQ(0, 0, 0) + co2 + lag(co2, 12))) 
 # Forecast 5 years
 temp_fit_forecast <- temp_fit %>% 
-    forecast(new_data(data_ts, n = 12*5) %>% mutate(co2 = co2_forecast$.mean))
+    fabletools::forecast(new_data(data_ts, n = 12*5) %>% mutate(co2 = co2_forecast$.mean))
 # Plot the forecast
 data_ts %>% 
     filter(year(index) > 2012) %>% 
@@ -266,17 +277,9 @@ data_ts %>%
 
 Once we include the CO, the predictions are a bit smaller than without it. However, the slope is positive in both of them.
 
-## Bayesian approach
+# Bayesian approach
 
 We will now try the Bayesian approach.
-
-```{r, echo = F}
-temp <- read.csv("https://data.giss.nasa.gov/gistemp/tabledata_v4/GLB.Ts+dSST.csv",
-                 header = TRUE, skip = 1, sep = ",", na.strings = "***")
-temp_ts <- ts(as.vector(t(temp[,2:13])), start = c(1958, 3), frequency = 12) %>% 
-    as_tsibble() %>% drop_na()
-temp    <- temp_ts %>% as.ts()
-```
 
 ```{r, echo = F}
 temp <- data_ts %>% 
@@ -286,29 +289,25 @@ temp <- data_ts %>%
 temp_ts <- temp %>% 
   as_tsibble() %>% 
   drop_na()
+
+temps_ts2 <- temp_ts %>% 
+    mutate(index = as.Date(index)) %>% 
+    as_tibble()
+
+t <- 1:nrow(temp_ts) + 1959
 ```
 
-### Kalman filter with filter estimates of variances
+## Kalman filter with filter estimates of variances
 
 The first model we are going to try is the Kalman filter with filter estimates of variances. 
 
 ```{r}
-library(dlm)
-
-# MODEL 1: Kalman filter with filter estimates of variances.
-
-t <- 1:nrow(temp_ts) + 1959
-
-mod1  <- dlmModPoly(order = 1)
+mod1_temp  <- dlmModPoly(order = 1)
 
 # Estimate the filtered values of the state vector 
 
-filt1 <- dlmFilter(temp, mod1)
+filt1 <- dlmFilter(temp, mod1_temp)
 names(filt1)
-
-#filt1$y
-#filt1$mod
-#filt1$m
 
 # Plot time series and fit.
 
@@ -329,20 +328,17 @@ lines(t, lower_bound, lty=3, col="red")
 
 # Estimate  predicted values of the state vectors
 
-#filt1$a
-#dlmSvd2var(filt1$U.R, filt1$D.R)
 points(t, filt1$a, lty=2, col="green") # forecast
 points(t, filt1$f, lty=2, col="magenta") # forecast
-
 ```
 
 We can see that this model fails to capture the positive trend of the series. Now, we will try to change the values of V and W:
 
 ```{r}
-# Model 2: using fixed values of variances. Do V and W matter?
+# Using fixed values of variances. Do V and W matter?
 
-mod2  <- dlmModPoly(order=1, dV=10, dW=1)
-filt2 <- dlmFilter(temp, mod2 )
+mod2_temp  <- dlmModPoly(order=1, dV=10, dW=1)
+filt2 <- dlmFilter(temp, mod2_temp )
 mod3  <- dlmModPoly(order=1, dV=1, dW=10)
 filt3 <- dlmFilter(temp, mod3)
 plot(temp, type="p", xlab="Year", ylab="",
@@ -356,33 +352,30 @@ All the models are very similar but suffer from the same problem as before.
 
 ## BSTS
 
-```{r}
-library(bsts) 
-```
-
+Next, let's check the BSTS model. First, we introduce the model components.
 
 ```{r}
-#
-# Plot data
-#
-ts.plot(temp,lwd=2,ylab='', xlab = "Time")
-#
-# Introduce different model components
-#
 ss <- AddLocalLinearTrend(list(), temp)
 ss <- AddSeasonal(ss, temp, nseasons = 12)
-#
-# Fit model
-#
-model1 <- bsts(temp,
+```
+
+After that, we fit the model.
+
+```{r}
+model1_temp <- bsts(temp,
                state.specification = ss,
                niter = 1000)
-plot(model1)
-plot(model1, "components")  
+```
+
+And do multiple plots.
+
+```{r}
+plot(model1_temp)
+plot(model1_temp, "components")  
 #
 # Out of sample prediction (for 2013 along with the previous 3 years)
 # 
-pred1 <- predict(model1, horizon = 60)
+pred1 <- predict(model1_temp, horizon = 60)
 plot(pred1, plot.original = 240)
 ```
 
@@ -392,33 +385,28 @@ We can see that this model is able to capture the positive trend, and make predi
 
 Now, we will try to Bayesian version of ARIMA. We will use a training and a test partition, and we will compare it to a naive model.
 
-```{r}
-library(tidymodels)
-library(bayesmodels)
-library(modeltime)
-library(tidyverse)
-library(timetk)
-library(lubridate)
-```
+We first need to make a function to create a dates vector:
 
 ```{r}
-
 datseq <- function(t1, t2) { 
     seq(as.Date(paste0(t1,"01"), "%Y%m%d"), 
                as.Date(paste0(t2,"01"), "%Y%m%d"),by="month")
 }
 
 dates <- datseq("195901", "202212")
+```
 
-temps_ts2 <- temp_ts %>% 
-    mutate(index = as.Date(index)) %>% 
-    as_tibble()
+Next, let's define the spplits for cross validation.
 
-
+```{r}
 splits <- initial_time_split(temps_ts2, prop = 0.8)
 splits <- temps_ts2 %>%
     time_series_split(date_var = index, initial = "59 years", assess="5 years")
+```
 
+Next, let's fit, test and plot the model.
+
+```{r}
 model_fit_arima_bayesian <- sarima_reg(non_seasonal_ar = 0,
                              non_seasonal_differences = 1,
                              non_seasonal_ma = 3,
@@ -455,4 +443,21 @@ calibration_tbl %>%
 We can see in the posterior predict plot that the model captures most of the variability in the data.
 
 Regarding the predictions, the model does exactly that. The Bayesian model is clearly better than the naive model.
+
+# Conclusions
+
+Bayesian models can be useful on a number of occasions. 
+Throughout this work, we have been able to test their effectiveness.
+However, not everything is as easy as it seems. 
+In the R programming language, there is a lack of
+libraries with Bayesian time series models, perhaps due to their low popularity.
+
+However, we would like to highlight *bayesmodels*, which, thanks to the
+power of its package, *modeltime*, allows us to easily create
+Bayesian time series models, although it is still at an early stage and
+has a lot of work to do.
+
+In short, Bayesian time series can work very well under certain
+circumstances. However, they are not very popular today, which means that
+there is not much software available for their implementation.
 
